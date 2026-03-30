@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* 1. Importación de Fuentes */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;600;900&display=swap');
+
+/* 2. Definición de Variables y Tema */
+@theme {
+  --color-extra-black: #10120A;
+  --color-black-decant: #1a1a1a;
+  --color-dark-grey: #404040;
+  --color-light-grey: #eeeeee;
+  --color-neutral-white: #F9F7F2; /* Hueso / Marfil */
+  --color-brand-white: #fafafa;
+  --color-dark-blue: #12171d;
+  --color-brand-blue: #1d242d;
+  --color-light-blue: #526a85;
+  --color-dark-orange: #a74329;
+  --color-brand-orange: #ed6b48;
+  --color-light-orange: #f28c72;
+
+  --font-playfair: "Playfair Display", serif;
+  --font-poppins: "Poppins", sans-serif;
+}
+
+/* 3. Estilos Base Forzados */
+@layer base {
+  /* Forzamos el fondo marfil en el body y en el html */
+  html, body {
+    background-color: #F9F7F2 !important; /* HEX Directo para asegurar */
+    color: #12171d;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    font-family: "Poppins", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Playfair Display", serif;
+  }
+}
