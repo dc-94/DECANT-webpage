@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
 import { useCatalog } from '../context/CatalogContext';
 import MainNavbar from '../components/layout/MainNavbar';
 import BlobProducto from '../components/icons/BlobProducto';
+import ProductCard from '../components/public/ProductCard';
+import DynamicGuide from '../components/public/DynamicGuide';
 
 const ShoppingBagIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -13,9 +16,28 @@ const ShoppingBagIcon = ({ className }) => (
 export default function ProductDetail() {
   const { id, categoria, subcategoria } = useParams();
   const { productos, cargando } = useCatalog();
+  const { addToCart } = useCart();
   const [cantidad, setCantidad] = useState(1);
 
   const producto = productos.find(p => p.id === id);
+
+
+  // LÓGICA DE PRODUCTOS RELACIONADOS (Automático y Contextual)
+  const productosRelacionados = useMemo(() => {
+    if (!productos || !producto) return [];
+    
+    // 1. Buscamos de la misma subcategoría (ej: otros Malbecs)
+    let relacionados = productos.filter(p => p.id !== producto.id && p.subcategoria === producto.subcategoria);
+    
+    // 2. Si no llegamos a 3, rellenamos con la misma categoría padre (ej: otros Tintos)
+    if (relacionados.length < 3) {
+      const extra = productos.filter(p => p.id !== producto.id && p.categoria === producto.categoria && !relacionados.includes(p));
+      relacionados = [...relacionados, ...extra];
+    }
+    
+    // 3. Mezclamos aleatoriamente y cortamos en 3 exactos
+    return relacionados.sort(() => 0.5 - Math.random()).slice(0, 3);
+  }, [productos, producto]);
 
   useEffect(() => { window.scrollTo(0, 0); }, [id]);
 
@@ -43,22 +65,22 @@ export default function ProductDetail() {
   
   const leyendaStock = stock === 1 ? "¡Es el último disponible!" : `¡Últimas ${stock} unidades!`;
 
-  // Breadcrumb Truncado
+  const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : '';
+
   const getTruncatedBreadcrumb = () => {
     const segments = [
       { label: 'Home', link: '/' },
       { label: 'Shop', link: '/shop' }
     ];
 
-    if (categoria) segments.push({ label: categoria, link: `/shop/${categoria}` });
-    if (subcategoria) segments.push({ label: subcategoria, link: `/shop/${categoria}/${subcategoria}` });
+    if (categoria) segments.push({ label: capitalize(categoria), link: `/shop/${categoria}` });
+    if (subcategoria) segments.push({ label: capitalize(subcategoria), link: `/shop/${categoria}/${subcategoria}` });
 
     const items = [];
-    const separator = <span key="sep" className="mx-1">/</span>;
 
     if (segments.length > 4) {
       items.push(<span key="ellips" className="opacity-60">...</span>);
-      items.push(separator);
+      items.push(<span key="sep-ellips" className="mx-1">/</span>);
       
       const activePath = segments.slice(-2);
       activePath.forEach((seg, index) => {
@@ -67,7 +89,7 @@ export default function ProductDetail() {
             {seg.label}
           </Link>
         );
-        if (index === 0) items.push(separator);
+        if (index === 0) items.push(<span key={`sep-active-${index}`} className="mx-1">/</span>);
       });
     } else {
       segments.forEach((seg, index) => {
@@ -76,7 +98,7 @@ export default function ProductDetail() {
             {seg.label}
           </Link>
         );
-        if (index < segments.length - 1) items.push(separator);
+        if (index < segments.length - 1) items.push(<span key={`sep-${index}`} className="mx-1">/</span>);
       });
     }
 
@@ -87,22 +109,17 @@ export default function ProductDetail() {
     <div className="min-h-screen bg-neutral-white overflow-x-hidden">
       <MainNavbar />
 
-      {/* Breadcrumb - Padding aumentado (pt-36 a pt-44) para despegar del nav */}
-      <div className="w-full border-b border-dark-blue/10 pt-36 lg:pt-44 flex-shrink-0 relative z-30">
+      <div className="w-full border-b border-dark-blue/10 pt-36 lg:pt-44 flex-shrink-0 relative z-20">
         <div className="max-w-[95rem] mx-auto px-6 lg:px-20 pb-4 flex items-center gap-1.5 text-[10px] font-poppins font-black uppercase tracking-[0.2em] text-dark-blue/40">
           {getTruncatedBreadcrumb()}
         </div>
       </div>
 
-      <main className="max-w-[95rem] mx-auto grid grid-cols-1 lg:grid-cols-2 items-start pt-6 lg:pt-10 pb-20 lg:pb-0">
+      <main className="max-w-[95rem] mx-auto grid grid-cols-1 lg:grid-cols-2 items-start pt-6 lg:pt-10 pb-20 lg:pb-0 relative z-10">
 
-        {/* COL IZQ: Imagen */}
-        <section className="relative h-[40vh] lg:h-[75vh] flex items-center justify-center overflow-hidden border-b lg:border-b-0 lg:border-r border-dark-blue/5 lg:sticky lg:top-24 lg:pb-8 lg:pl-16 lg:pr-16">
+        <section className="relative h-[40vh] lg:h-[75vh] flex items-center justify-center overflow-hidden border-b lg:border-b-0 lg:border-r border-dark-blue/5 lg:sticky lg:top-24 lg:pb-8 lg:pl-16 lg:pr-16 z-10">
           
-          {/* =========================================
-              LEYENDA DE STOCK (Móvil: bottom, Desktop: top)
-              ========================================= */}
-          <div className="absolute bottom-6 md:bottom-auto md:top-6 left-0 w-full flex justify-center z-30 pointer-events-none">
+          <div className="absolute bottom-6 md:bottom-auto md:top-6 left-0 w-full flex justify-center z-10 pointer-events-none">
             {producto.aPedido ? (
               <p className="text-dark-blue text-[10px] md:text-[12px] font-poppins font-black uppercase tracking-[0.2em] drop-shadow-sm bg-white/70 px-2 py-0.5 rounded backdrop-blur-sm">
                 A Pedido
@@ -114,7 +131,7 @@ export default function ProductDetail() {
             ) : null}
           </div>
 
-          <div className="absolute inset-0 flex items-center justify-center opacity-10 z-0">
+          <div className="absolute inset-0 flex items-center justify-center opacity-10 z-0 pointer-events-none">
             <div className="w-[80%] h-[80%] animate-spin-slow">
               <BlobProducto className="w-full h-full text-light-blue" />
             </div>
@@ -127,35 +144,28 @@ export default function ProductDetail() {
               className={`relative z-10 h-[70%] lg:h-auto max-h-[65%] lg:max-h-[70%] w-auto object-contain drop-shadow-product transition-transform duration-1000 hover:scale-105 ${sinStock ? 'grayscale opacity-40' : ''}`} 
             />
           ) : (
-            <span className="font-playfair italic opacity-20 text-3xl z-10">Selección Decant</span>
+            <span className="font-playfair italic opacity-20 text-3xl z-10 relative">Selección Decant</span>
           )}
         </section>
 
-        {/* COL DER: Info */}
-        <section className="px-6 md:px-12 lg:px-24 pt-8 lg:pt-0 pb-24 lg:flex lg:flex-col overflow-x-hidden">
+        <section className="px-6 md:px-12 lg:px-24 pt-8 lg:pt-0 pb-24 lg:flex lg:flex-col overflow-x-hidden relative z-10">
 
-          {/* 1. Bodega + Línea */}
           <div className="flex items-center gap-3 text-[10px] md:text-xs font-poppins font-black uppercase tracking-[0.25em] text-dark-blue mb-4 flex-wrap">
             <span className="whitespace-nowrap">{producto.bodega}</span>
             <span className="flex-1 h-[1px] bg-dark-blue/20 min-w-[20px]"></span>
           </div>
           
-          {/* 2. Nombre */}
           <h1 className="font-playfair italic text-4xl md:text-5xl text-dark-blue leading-[1.1] mb-6">
             {producto.nombre}
           </h1>
 
-          {/* 3. Cepa + Línea + Origen */}
-          <div className="flex items-center gap-3 text-[10px] font-poppins font-black uppercase tracking-[0.4em] text-light-blue mb-10 flex-wrap">
+          <div className="flex items-center gap-3 text-[14px] font-poppins font-black uppercase tracking-[0.4em] text-light-blue mb-10 flex-wrap">
             <span className="whitespace-nowrap">{producto.varietal || 'CEPA'}</span>
             <span className="flex-1 h-[1px] bg-dark-blue/10 min-w-[20px]"></span>
             <span className="whitespace-nowrap">{producto.origen || 'ARGENTINA'}</span>
           </div>
 
-          {/* 4. Precios y Labels */}
-          {/* Le damos un mb-14 amplio para que no se pegue al botón de compra */}
           <div className="flex flex-col mb-14 w-full">
-            {/* Fila Precios */}
             <div className="flex items-baseline gap-4 w-full flex-wrap">
               <span className="text-3xl md:text-5xl font-poppins font-semibold text-dark-blue whitespace-nowrap">
                 {formatPrice(producto.precioFinal)}
@@ -167,7 +177,6 @@ export default function ProductDetail() {
               )}
             </div>
 
-            {/* Fila Labels (Bajo el precio) */}
             {tieneDescuento && (producto.descuentoPorcentaje > 0 || mostrarLabelAdicional) && (
               <div className="mt-3 flex flex-row">
                 <div className="flex flex-row items-center justify-center bg-brand-orange text-brand-white shadow-md">
@@ -186,27 +195,27 @@ export default function ProductDetail() {
             )}
           </div>
 
-          {/* Carrito */}
-          <div className="flex flex-col items-center mb-16 max-w-lg mx-auto w-full relative z-40">
+          <div className="flex flex-col items-center mb-16 max-w-lg mx-auto w-full relative z-10">
             <div className="flex flex-row items-stretch gap-2 w-full">
               <div className="flex items-center border border-dark-blue/10 bg-white w-32 h-16 px-2 flex-shrink-0">
                 <button 
                   onClick={() => cantidad > 1 && setCantidad(cantidad - 1)}
-                  className="w-10 h-full text-lg hover:text-brand-orange transition-colors"
+                  className="w-10 h-full text-lg hover:text-brand-orange transition-colors outline-none"
                 >—</button>
                 <span className="flex-1 text-center font-poppins font-bold text-sm">{cantidad}</span>
                 <button 
                   onClick={() => cantidad < stock && setCantidad(cantidad + 1)}
-                  className="w-10 h-full text-lg hover:text-brand-orange transition-colors"
+                  className="w-10 h-full text-lg hover:text-brand-orange transition-colors outline-none"
                 >+</button>
               </div>
 
               <button 
                 disabled={sinStock}
-                className={`flex-1 flex items-center justify-between px-6 md:px-8 h-16 font-poppins font-black uppercase tracking-[0.2em] text-[10px] md:text-[12px] transition-all duration-500 shadow-2xl
+                onClick={() => addToCart(producto, cantidad)}
+                className={`flex-1 flex items-center justify-between px-6 md:px-8 h-16 font-poppins font-black uppercase tracking-[0.2em] text-[10px] md:text-[12px] transition-all duration-500 outline-none
                   ${sinStock 
-                    ? 'bg-light-grey text-dark-grey cursor-not-allowed shadow-none' 
-                    : 'bg-brand-orange text-brand-white hover:bg-dark-orange hover:translate-y-[-4px]'}`}
+                    ? 'bg-light-grey text-dark-grey cursor-not-allowed border border-dark-blue/10' 
+                    : 'bg-brand-orange text-brand-white hover:bg-dark-orange hover:-translate-y-1 shadow-xl hover:shadow-2xl'}`}
               >
                 <span>{sinStock ? 'Agotado' : 'Comprar'}</span>
                 <ShoppingBagIcon className="w-6 h-6 md:w-7 md:h-7" />
@@ -214,25 +223,53 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* Descripción */}
           {producto.descripcion && (
             <div className="mt-2 pt-12 border-t border-dark-blue/5 relative z-10">
               <h3 className="font-poppins uppercase tracking-widest text-brand-orange text-lg md:text-2xl mb-6 flex items-baseline gap-2 flex-wrap">
                 <span>DESCUBRÍ</span> <span className="font-black text-dark-blue break-words">{producto.nombre}</span>
               </h3>
-              <p className="font-playfair text-lg md:text-2xl leading-relaxed text-dark-blue/80 italic break-words">
-                "{producto.descripcion}"
+              <p className="font-poppins text-base md:text-lg leading-relaxed text-dark-blue/80 break-words">
+                {producto.descripcion}
               </p>
             </div>
           )}
-
         </section>
-      </main>
+      
 
-      {/* Footer Relacionados */}
-      <section className="h-screen bg-dark-blue flex items-center justify-center relative z-20 mt-12">
-        <h2 className="font-playfair italic text-brand-white text-2xl md:text-3xl">Otras joyas de nuestra cava</h2>
-      </section>
+      </main>  
+
+      {/* =========================================
+          SECCIÓN: PRODUCTOS RELACIONADOS
+          ========================================= */}
+      {productosRelacionados.length > 0 && (
+        <section className="w-full bg-[#F4F7FA] mt-12 py-24 px-6 lg:px-20 relative z-10">
+          <div className="max-w-[95rem] mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-playfair italic text-dark-blue text-3xl md:text-4xl">Otras joyas de nuestra cava</h2>
+              <Link to={`/shop/${producto.categoria?.toLowerCase()}`} className="hidden md:block font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange hover:text-dark-blue transition-colors">
+                Ver más
+              </Link>
+            </div>
+            
+            {/* Mantenemos el "aire" sofisticado de las cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-24 px-0 lg:px-12 mt-12">
+              {productosRelacionados.map(prod => (
+                <ProductCard key={prod.id} producto={prod} />
+              ))}
+            </div>
+            
+            <div className="mt-12 text-center md:hidden">
+              <Link to={`/shop/${producto.categoria?.toLowerCase()}`} className="font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange">
+                Ver más joyas
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+{/* =========================================
+          SECCIÓN: GUÍA DINÁMICA DE DEGUSTACIÓN / TIPS
+          ========================================= */}
+        <DynamicGuide key={producto.id} categoria={producto.categoria} />      
     </div>
   );
 }

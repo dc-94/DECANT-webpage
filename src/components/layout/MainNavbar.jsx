@@ -1,19 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCatalog } from '../../context/CatalogContext';
-import SearchOverlay from './SearchOverlay'; // 👈 IMPORTANTE
+import SearchOverlay from './SearchOverlay';
+import { useCart } from '../../context/CartContext';
+import CartDrawer from '../cart/CartDrawer';
 
 export default function MainNavbar() {
-  const { menuTree, cargando } = useCatalog();
+  const { menuTree, cargando, productos } = useCatalog();
+  const { totalItems, isCartOpen, setIsCartOpen } = useCart();
   const location = useLocation();
   
   const [scrolled, setScrolled] = useState(false);
   const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
-  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [expandedMobileCats, setExpandedMobileCats] = useState({}); 
-  const [expandedDesktopSubCats, setExpandedDesktopSubCats] = useState({}); 
- const [searchOpen, setSearchOpen] = useState(false); // 👈 ESTADO DEL BUSCADOR
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const [openCat, setOpenCat] = useState(null); 
+  const [openSub, setOpenSub] = useState(null); 
+
+  const desktopScrollRef = useRef(null);
+  const mobileScrollRef = useRef(null);
+  const [showScrollHint, setShowScrollHint] = useState(false);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
@@ -23,70 +31,79 @@ export default function MainNavbar() {
   useEffect(() => {
     setDesktopMenuOpen(false);
     setMobileMenuOpen(false);
+    setOpenCat(null);
+    setOpenSub(null);
   }, [location.pathname]);
 
-  const toggleMobileAccordion = (level) => {
-    setExpandedMobileCats(prev => ({ ...prev, [level]: !prev[level] }));
+  const toggleCat = (catName) => {
+    if (openCat === catName) {
+      setOpenCat(null); 
+      setOpenSub(null); 
+    } else {
+      setOpenCat(catName); 
+      setOpenSub(null);    
+    }
   };
 
-  const toggleDesktopSubCat = (id) => {
-    setExpandedDesktopSubCats(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleSub = (subName) => {
+    if (openSub === subName) {
+      setOpenSub(null);
+    } else {
+      setOpenSub(subName);
+    }
   };
+
+  const checkScroll = () => {
+    const check = (ref) => ref.current && ref.current.scrollHeight > ref.current.clientHeight + 10;
+    if (desktopMenuOpen) setShowScrollHint(check(desktopScrollRef));
+    if (mobileMenuOpen) setShowScrollHint(check(mobileScrollRef));
+  };
+
+  useEffect(() => {
+    setTimeout(checkScroll, 350); 
+  }, [openCat, openSub, desktopMenuOpen, mobileMenuOpen]);
+
+  const handleScrollArea = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    if (scrollTop + clientHeight >= scrollHeight - 30) {
+      setShowScrollHint(false);
+    } else {
+      setShowScrollHint(true);
+    }
+  };
+
+  const menuTreeFiltrado = Object.entries(menuTree || {}).filter(
+    ([catName]) => catName.toLowerCase() !== 'suscripciones' && catName.toLowerCase() !== 'suscripciónes'
+  );
 
   return (
     <>
-      {/* =========================================
-        CORTINA FONDO (DESKTOP) - DARK GLASSMORPHISM
-        =========================================
-      */}
-      {desktopMenuOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-dark-black/50 backdrop-blur-lg transition-all duration-800 hidden md:block"
-          onClick={() => setDesktopMenuOpen(false)}
-        />
-      )}
-
-      {/* =========================================
-         NAVBAR PRINCIPAL (Fondo Sólido + Shrink Effect)
-        =========================================
-      */}
+      {/* NAVBAR PRINCIPAL SUPERIOR */}
       <nav className={`fixed top-0 w-full z-50 transition-all duration-500 bg-extra-black ${scrolled || desktopMenuOpen ? 'border-b border-light-blue/20' : ''}`}>
-        
-        {/* El contenedor cambia su altura al hacer scroll (h-28 a h-20) */}
         <div className={`max-w-7xl mx-auto px-6 flex items-center justify-between transition-all duration-500 ${scrolled ? 'h-24' : 'h-28'}`}>
           
-          {/* IZQUIERDA: MENÚ HAMBURGUESA / LOGO */}
           <div className="flex-1 md:flex-none flex items-center">
-            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-brand-white">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-brand-white outline-none">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
             <Link to="/" className="hidden md:block">
-               {/* El logo se achica en Desktop (h-12 a h-8) */}
-               <img 
-                 src="/assets/brand/logo-white-T.png" 
-                 alt="Decant" 
-                 className={`object-contain transition-all duration-500 ${scrolled ? 'h-10' : 'h-12'}`} 
-               />
+               <img src="/assets/brand/logo-white-T.png" alt="Decant" className={`object-contain transition-all duration-500 ${scrolled ? 'h-10' : 'h-12'}`} />
             </Link>
           </div>
 
-          {/* CENTRO: LOGO MÓVIL */}
           <div className="flex-1 flex justify-center md:hidden">
             <Link to="/">
-              {/* El logo se achica en Móvil (h-10 a h-7) */}
-              <img 
-                src="/assets/brand/logo-white-T.png" 
-                alt="Decant" 
-                className={`object-contain transition-all duration-500 ${scrolled ? 'h-8' : 'h-10'}`} 
-              />
+              <img src="/assets/brand/logo-white-T.png" alt="Decant" className={`object-contain transition-all duration-500 ${scrolled ? 'h-8' : 'h-10'}`} />
             </Link>
           </div>
 
-          {/* CENTRO: LINKS DESKTOP */}
           <div className="hidden md:flex flex-1 justify-center gap-12">
             <button 
-              onClick={() => setDesktopMenuOpen(!desktopMenuOpen)}
-              className={`text-[11px] font-medium uppercase tracking-[0.2em] transition-colors flex items-center gap-1.5 ${desktopMenuOpen ? 'text-brand-orange' : 'text-brand-white hover:text-brand-orange'}`}
+              onClick={() => {
+                setDesktopMenuOpen(!desktopMenuOpen);
+                if(desktopMenuOpen) { setOpenCat(null); setOpenSub(null); }
+              }}
+              className={`text-[11px] font-medium uppercase tracking-[0.2em] transition-colors flex items-center gap-1.5 outline-none ${desktopMenuOpen ? 'text-brand-orange' : 'text-brand-white hover:text-brand-orange'}`}
             >
               Shop
               <svg className={`w-3 h-3 transition-transform duration-300 ${desktopMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
@@ -95,82 +112,114 @@ export default function MainNavbar() {
             <Link to="/manifiesto" className="text-[11px] font-medium uppercase tracking-[0.2em] text-brand-white hover:text-brand-orange transition-colors">Manifiesto</Link>
           </div>
 
-          {/* DERECHA: ÍCONOS */}
           <div className="flex-1 flex justify-end gap-5 md:gap-6 items-center text-brand-white">
-            <button 
-              onClick={() => setSearchOpen(true)} // 👈 ABRIR BUSCADOR
-              className="hidden md:block hover:text-brand-orange transition-colors"
-            >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <button onClick={() => setSearchOpen(true)} className="hidden md:block hover:text-brand-orange transition-colors outline-none">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </button>
-            <button className="hover:text-brand-orange transition-colors relative">
-              <span className="absolute -top-1.5 -right-2 bg-brand-orange text-brand-white text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">0</span>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+            <button onClick={() => setIsCartOpen(true)} className="hover:text-brand-orange transition-colors relative outline-none">
+              {totalItems > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-brand-orange text-brand-white text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                  {totalItems}
+                </span>
+              )}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
             </button>
           </div>
-
         </div>
 
         {/* =========================================
-          MEGA MENÚ DESKTOP (Transparente sobre fondo oscuro)
-          =========================================
-        */}
-        <div className={`absolute top-full left-0 w-full bg-brand-white/0 backdrop-blur-md transition-all duration-850 overflow-hidden hidden md:block ${desktopMenuOpen ? 'max-h-[80vh] border-t border-light-blue/20 opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="max-w-7xl mx-auto px-6 py-12">
-            
-            <div className="mb-10 pb-4 border-b border-light-blue/20 flex justify-between items-center">
-               <span className="text-xs font-bold text-light-blue uppercase tracking-[0.3em]">Explorar Colección</span>
-               <Link to="/shop" className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-orange hover:text-dark-orange transition-colors">
-                 Ver todo el Catálogo →
-               </Link>
-            </div>
+            MENU DESKTOP (GLASSMORPHISM CLARO + FILAS HORIZONTALES)
+            ========================================= */}
+        <div className={`absolute top-full left-0 w-full bg-neutral-white/75 backdrop-blur-md transition-all duration-700 overflow-hidden hidden md:block border-t border-dark-blue/10 ${desktopMenuOpen ? 'max-h-[85vh] opacity-100' : 'max-h-0 opacity-0 border-transparent'}`}>
+          
+          <div className="relative w-full h-[85vh]">
+            <div 
+              ref={desktopScrollRef} 
+              onScroll={handleScrollArea}
+              className="absolute inset-0 overflow-y-auto no-scrollbar py-20 px-6 flex flex-col items-center text-center"
+            >
+              
+              <div className="mb-16 drop-shadow-sm">
+                <Link to="/shop" onClick={() => setDesktopMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-[0.3em] text-brand-orange hover:text-dark-orange transition-colors pb-2 border-b border-brand-orange/30">
+                  Ver todo el Catálogo
+                </Link>
+              </div>
 
-            {cargando ? (
-              <div className="py-10 text-center text-light-blue text-xs tracking-widest uppercase animate-pulse">Descorchando catálogo...</div>
-            ) : (
-              <div className="grid grid-cols-4 gap-12">
-                {Object.entries(menuTree).map(([catMadre, subcategorias]) => (
-                  <div key={catMadre} className="flex flex-col">
-                    <h3 className="text-brand-white font-black uppercase tracking-[0.2em] mb-4 text-sm">{catMadre}</h3>
-                    <Link to={`/shop/${catMadre.toLowerCase()}`} className="text-[10px] font-bold uppercase tracking-widest text-light-blue hover:text-brand-orange transition-colors mb-6 pb-1 border-b border-light-blue/20 w-fit">
-                      Ver todos los {catMadre}
-                    </Link>
+              {cargando ? (
+                <div className="py-10 text-dark-blue/50 text-sm tracking-widest uppercase animate-pulse drop-shadow-sm">Descorchando catálogo...</div>
+              ) : (
+                <div className="flex flex-col items-center w-full max-w-6xl">
+                  {menuTreeFiltrado.map(([catMadre, subcategorias]) => {
+                    const isCatOpen = openCat === catMadre;
+                    
+                    return (
+                      <div key={catMadre} className="w-full flex flex-col items-center mb-8">
+                        {/* CATEGORÍA PRINCIPAL */}
+                        <button 
+                          onClick={() => toggleCat(catMadre)} 
+                          className={`text-4xl md:text-[55px] font-playfair tracking-tight drop-shadow-md transition-all duration-300 flex items-center justify-center outline-none ${isCatOpen ? 'italic text-brand-orange' : 'text-extra-black hover:text-brand-orange'}`}
+                        >
+                          {isCatOpen && <span className="mr-6 font-poppins text-3xl font-light">&rarr;</span>}
+                          {catMadre}
+                        </button>
 
-                    {/* Acordeones de Subcategorías */}
-                    <div className="space-y-4">
-                      {Object.entries(subcategorias).map(([sub, varietales]) => {
-                        const isExpanded = expandedDesktopSubCats[`${catMadre}-${sub}`];
-                        return (
-                          <div key={sub} className="border-b border-light-blue/10 pb-2">
-                            <button 
-                              onClick={() => toggleDesktopSubCat(`${catMadre}-${sub}`)}
-                              className="w-full flex items-center justify-between text-brand-white font-bold uppercase tracking-wider text-[11px] hover:text-brand-orange transition-colors"
-                            >
-                              {sub}
-                              <span className="text-brand-orange font-normal text-sm">{isExpanded ? '-' : '+'}</span>
-                            </button>
+                        <div className={`flex flex-col items-center w-full overflow-hidden transition-all duration-700 ease-in-out ${isCatOpen ? 'max-h-[2000px] mt-10 opacity-100' : 'max-h-0 opacity-0'}`}>
+                          
+                          <Link to={`/shop/${catMadre.toLowerCase()}`} onClick={() => setDesktopMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-widest text-brand-orange hover:text-dark-orange transition-colors mb-10 pb-1 border-b border-brand-orange/30 drop-shadow-sm">
+                            Ver todos los {catMadre}
+                          </Link>
 
-                            <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[500px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
-                              <Link to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}`} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-orange hover:text-dark-orange transition-colors mb-4 pl-2">
-                                ↳ Ver todo en {sub}
-                              </Link>
+                          {/* 👇 CONTENEDOR HORIZONTAL PARA LAS SUBCATEGORÍAS (Desktop) */}
+                          <div className="flex flex-row flex-wrap justify-center items-start gap-x-16 gap-y-10 w-full">
+                            {Object.entries(subcategorias).map(([sub, varietales]) => {
+                              const isSubOpen = openSub === sub;
                               
-                              <ul className="space-y-2 pl-3 border-l border-brand-orange/20">
-                                {varietales.map(v => (
-                                  <li key={v}>
-                                    <Link to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}/${v.toLowerCase()}`} className="text-[11px] font-medium text-light-blue hover:text-brand-white transition-colors block">
-                                      {v}
+                              const varietalesActivos = varietales.filter(v => 
+                                productos.some(p => 
+                                  (p.varietal && p.varietal.toLowerCase() === v.toLowerCase()) || 
+                                  (p.cepa && p.cepa.toLowerCase() === v.toLowerCase())
+                                )
+                              );
+                              
+                              return (
+                                <div key={sub} className="flex flex-col items-center">
+                                  <button 
+                                    onClick={() => toggleSub(sub)}
+                                    className={`text-2xl md:text-[34px] font-poppins font-light drop-shadow-sm transition-all duration-300 flex items-center outline-none ${isSubOpen ? 'italic text-brand-orange' : 'text-extra-black/80 hover:text-extra-black'}`}
+                                  >
+                                    {isSubOpen && <span className="mr-3 text-xl">&rarr;</span>}
+                                    {sub}
+                                  </button>
+
+                                  <div className={`flex flex-col items-center w-full overflow-hidden transition-all duration-500 ease-in-out ${isSubOpen ? 'max-h-[1000px] mt-6 opacity-100' : 'max-h-0 opacity-0'}`}>
+                                    <Link to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}`} onClick={() => setDesktopMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-widest text-brand-orange hover:text-dark-orange transition-colors mb-6 drop-shadow-sm">
+                                      ↳ Ver todo en {sub}
                                     </Link>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                                    
+                                    {/* 👇 CONTENEDOR HORIZONTAL PARA LAS CEPAS (Desktop) */}
+                                    <div className="flex flex-row flex-wrap justify-center gap-x-8 gap-y-4 mb-6 max-w-2xl">
+                                      {varietalesActivos.map(v => (
+                                        <Link key={v} to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}/${v.toLowerCase()}`} onClick={() => setDesktopMenuOpen(false)} className="text-xl md:text-2xl font-poppins font-light text-light-blue hover:text-brand-orange transition-colors drop-shadow-sm">
+                                          {v}
+                                        </Link>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            {showScrollHint && (
+              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-brand-orange animate-bounce pointer-events-none drop-shadow-md bg-neutral-white/50 backdrop-blur-md p-2 rounded-full border border-dark-blue/5">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
               </div>
             )}
           </div>
@@ -178,84 +227,118 @@ export default function MainNavbar() {
       </nav>
 
       {/* =========================================
-        MENÚ FULLSCREEN MOBILE (DARK MODE)
-        =========================================
-      */}
-      <div className={`fixed inset-0 z-[60] bg-extra-black flex flex-col transition-transform duration-500 md:hidden ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          MENÚ FULLSCREEN MOBILE (GLASSMORPHISM CLARO + COLUMNA)
+          ========================================= */}
+      <div className={`fixed inset-0 z-[60] bg-neutral-white/55 backdrop-blur-md flex flex-col transition-transform duration-700 ease-in-out md:hidden ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
-        <div className="h-20 px-6 flex items-center justify-between border-b border-light-blue/20 flex-shrink-0">
-          <button onClick={() => setMobileMenuOpen(false)} className="text-brand-white p-2 -ml-2">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M6 18L18 6M6 6l12 12" /></svg>
+        <div className="h-20 px-6 flex items-center justify-between border-b border-dark-blue/10 flex-shrink-0 z-10">
+          <button onClick={() => setMobileMenuOpen(false)} className="text-extra-black p-2 -ml-2 outline-none">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          <img src="/assets/brand/logo-white-T.png" alt="Decant" className="h-6 object-contain" />
+          <img src="/assets/brand/logo-white-T.png" alt="Decant" className="h-6 object-contain invert" />
           <div className="w-6"></div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-10">
-          <nav className="flex flex-col gap-6">
-            <div>
-              <button onClick={() => toggleMobileAccordion('shop')} className="w-full flex items-center justify-between text-2xl font-black uppercase tracking-[0.1em] text-brand-white">
-                Shop <span className="text-brand-orange font-normal">{expandedMobileCats['shop'] ? '-' : '+'}</span>
-              </button>
-              
-              <div className={`overflow-hidden transition-all duration-300 ${expandedMobileCats['shop'] ? 'max-h-[1500px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
-                <Link to="/shop" className="block text-xs font-black uppercase tracking-[0.2em] text-brand-orange mb-8 pb-2 border-b border-light-blue/20">Ver todo el catálogo</Link>
-
-                {Object.entries(menuTree).map(([catMadre, subcategorias]) => (
-                  <div key={catMadre} className="mb-8 pl-4 border-l border-light-blue/20">
-                    <button onClick={() => toggleMobileAccordion(catMadre)} className="w-full flex items-center justify-between text-lg font-bold uppercase tracking-widest text-brand-white mb-4">
-                      {catMadre} <span className="text-brand-orange text-sm font-normal">{expandedMobileCats[catMadre] ? '-' : '+'}</span>
-                    </button>
-
-                    <div className={`overflow-hidden transition-all duration-300 space-y-6 ${expandedMobileCats[catMadre] ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                      <Link to={`/shop/${catMadre.toLowerCase()}`} className="block text-[10px] font-bold uppercase tracking-widest text-light-blue mb-2">Ver todos los {catMadre}</Link>
-                      
-                      {Object.entries(subcategorias).map(([sub, varietales]) => (
-                        <div key={sub} className="pl-4">
-                          <h4 className="text-sm font-bold uppercase tracking-wider text-brand-white mb-2">{sub}</h4>
-                          <Link to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}`} className="block text-[10px] font-black uppercase tracking-widest text-brand-orange mb-3">↳ Ver todo en {sub}</Link>
-                          <ul className="space-y-3">
-                            {varietales.map(v => (
-                              <li key={v}>
-                                <Link to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}/${v.toLowerCase()}`} className="text-sm text-light-blue hover:text-brand-white">{v}</Link>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <div className="flex-1 relative">
+          <div 
+            ref={mobileScrollRef}
+            onScroll={handleScrollArea}
+            className="absolute inset-0 overflow-y-auto no-scrollbar py-12 px-6 flex flex-col items-center text-center"
+          >
+            <div className="mb-14 drop-shadow-sm">
+              <Link to="/shop" onClick={() => setMobileMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-[0.3em] text-brand-orange pb-2 border-b border-brand-orange/30">
+                Ver todo el catálogo
+              </Link>
             </div>
 
-            <Link to="/suscripciones" className="text-2xl font-black uppercase tracking-[0.1em] text-brand-white">Suscripciones</Link>
-            <Link to="/manifiesto" className="text-2xl font-black uppercase tracking-[0.1em] text-brand-white">Manifiesto</Link>
-          </nav>
+            {menuTreeFiltrado.map(([catMadre, subcategorias]) => {
+              const isCatOpen = openCat === catMadre;
+              
+              return (
+                <div key={catMadre} className="w-full flex flex-col items-center mb-8">
+                  <button 
+                    onClick={() => toggleCat(catMadre)} 
+                    className={`text-[40px] font-playfair tracking-tight drop-shadow-md transition-all duration-300 flex items-center justify-center outline-none ${isCatOpen ? 'italic text-brand-orange' : 'text-extra-black'}`}
+                  >
+                    {isCatOpen && <span className="mr-3 font-poppins text-2xl font-light">&rarr;</span>}
+                    {catMadre}
+                  </button>
+
+                  <div className={`flex flex-col items-center w-full overflow-hidden transition-all duration-500 ease-in-out ${isCatOpen ? 'max-h-[1500px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <Link to={`/shop/${catMadre.toLowerCase()}`} onClick={() => setMobileMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-widest text-brand-orange mb-8 drop-shadow-sm">
+                      Ver todos los {catMadre}
+                    </Link>
+
+                    {Object.entries(subcategorias).map(([sub, varietales]) => {
+                      const isSubOpen = openSub === sub;
+
+                      const varietalesActivos = varietales.filter(v => 
+                        productos.some(p => 
+                          (p.varietal && p.varietal.toLowerCase() === v.toLowerCase()) || 
+                          (p.cepa && p.cepa.toLowerCase() === v.toLowerCase())
+                        )
+                      );
+                      
+                      return (
+                        <div key={sub} className="w-full flex flex-col items-center mb-6">
+                          <button 
+                            onClick={() => toggleSub(sub)}
+                            className={`text-2xl font-poppins font-light drop-shadow-sm transition-all duration-300 flex items-center outline-none ${isSubOpen ? 'italic text-brand-orange' : 'text-extra-black/80'}`}
+                          >
+                            {isSubOpen && <span className="mr-3 text-lg">&rarr;</span>}
+                            {sub}
+                          </button>
+
+                          <div className={`flex flex-col items-center w-full overflow-hidden transition-all duration-500 ease-in-out ${isSubOpen ? 'max-h-[800px] mt-6 opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <Link to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}`} onClick={() => setMobileMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-widest text-brand-orange mb-6 drop-shadow-sm">
+                              ↳ Ver todo en {sub}
+                            </Link>
+                            
+                            <div className="flex flex-col items-center gap-4 mb-4">
+                              {varietalesActivos.map(v => (
+                                <Link key={v} to={`/shop/${catMadre.toLowerCase()}/${sub.toLowerCase()}/${v.toLowerCase()}`} onClick={() => setMobileMenuOpen(false)} className="text-xl font-poppins font-light text-light-blue hover:text-brand-orange drop-shadow-sm">
+                                  {v}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="mt-12 flex flex-col gap-6 pt-10 border-t border-dark-blue/10 w-full max-w-[200px]">
+              <Link to="/suscripciones" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Suscripciones</Link>
+              <Link to="/manifiesto" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Manifiesto</Link>
+            </div>
+          </div>
+
+          {showScrollHint && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-brand-orange animate-bounce pointer-events-none drop-shadow-md bg-neutral-white/50 backdrop-blur-md p-2 rounded-full border border-dark-blue/5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+            </div>
+          )}
         </div>
 
-        {/* Footer Buscador Móvil Dark */}
-        {/* Footer Buscador Móvil Dark (Ahora funciona como botón) */}
-        <div className="p-6 border-t border-light-blue/20 bg-extra-black flex-shrink-0">
+        {/* Footer Buscador Móvil */}
+        <div className="p-6 border-t border-dark-blue/10 flex-shrink-0 z-10">
           <div 
-            className="relative cursor-pointer group"
-            onClick={() => {
-              setMobileMenuOpen(false); // Cierra el menú hamburguesa
-              setSearchOpen(true);      // Abre la pantalla del buscador
-            }}
+            className="relative cursor-pointer group drop-shadow-sm"
+            onClick={() => { setMobileMenuOpen(false); setSearchOpen(true); }}
           >
-            {/* Simulamos el input visualmente, pero al tocarlo dispara el overlay */}
-            <div className="w-full bg-extra-black text-light-blue/50 text-sm p-4 pl-12 rounded-xl border border-light-blue/20 group-hover:border-brand-orange transition-colors flex items-center">
+            <div className="w-full bg-neutral-white/60 text-light-blue/70 text-sm p-4 pl-12 rounded-xl border border-dark-blue/20 flex items-center group-hover:border-brand-orange transition-colors backdrop-blur-sm">
               Buscar etiquetas, varietales...
             </div>
-            <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-light-blue group-hover:text-brand-orange transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-light-blue group-hover:text-brand-orange transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
         </div>
       </div>
-      {/* =========================================
-        OVERLAY DE BÚSQUEDA
-        ========================================= */}
+
       <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>
   );
 }

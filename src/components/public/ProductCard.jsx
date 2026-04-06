@@ -1,3 +1,4 @@
+import { useCart } from '../../context/CartContext';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import BlobProducto from '../icons/BlobProducto';
@@ -15,6 +16,7 @@ const ShoppingBagIcon = ({ className }) => (
 );
 
 export default function ProductCard({ producto }) {
+  const { addToCart } = useCart();
   const [showQuantity, setShowQuantity] = useState(false);
   const [cantidad, setCantidad] = useState(1);
 
@@ -44,9 +46,8 @@ export default function ProductCard({ producto }) {
     }
   };
 
-  const catUrl = (producto.categoria || 'catalogo').toLowerCase().trim();
-  const subUrl = (producto.subcategoria || 'seleccion').toLowerCase().trim();
-  const urlLarga = `/shop/${catUrl}/${subUrl}/${producto.id}`;
+  // AQUÍ ESTÁ LA MAGIA: Ruta limpia y directa al producto
+  const urlLarga = `/producto/${producto.id}`;
 
   return (
     <div className="group flex flex-col h-full bg-transparent font-poppins">
@@ -187,7 +188,12 @@ export default function ProductCard({ producto }) {
             </button>
             
             <button 
-              onClick={(e) => { e.stopPropagation(); /* Lógica para carrito */ }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                addToCart(producto, cantidad); // Agrega al carrito global
+                setShowQuantity(false);        // Cierra el selector
+                setCantidad(1);                // Resetea a 1 para la próxima vez
+              }}
               className="bg-brand-orange text-brand-white h-full px-3 flex items-center justify-center hover:bg-dark-orange transition-colors"
             >
               <ShoppingBagIcon className="w-4 h-4" />

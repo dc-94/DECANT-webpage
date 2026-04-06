@@ -16,53 +16,70 @@ export function CatalogProvider({ children }) {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    // Escuchamos la base de datos en tiempo real (una sola vez por visitante)
-    const q = query(collection(db, "productos"), orderBy("createdAt", "desc"));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    let isProductosLoaded = false;
+    let isMenuLoaded = false;
+
+    // =========================================================
+    // 1. ESCUCHAMOS EL CATÁLOGO DE PRODUCTOS
+    // =========================================================
+    const qProductos = query(collection(db, "productos"), orderBy("createdAt", "desc"));
+    const unsubscribeProductos = onSnapshot(qProductos, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // 1. Filtramos los productos que se pueden mostrar en la web
-      // (Preparamos el terreno para el checkbox de mañana. Si no existe la propiedad, asumimos que sí se muestra).
+      // Filtramos los productos que se pueden mostrar en la web
       const productosWeb = docs.filter(p => p.mostrarEnWeb !== false);
-      
       setProductos(productosWeb);
-
-      // 2. Construimos el "Árbol" dinámico para el Mega Menú
-      const tree = {};
       
-      productosWeb.forEach(prod => {
-        const cat = prod.categoria || "Otros";
-        const sub = prod.subcategoria || "General";
-        const varietal = prod.varietal || "";
+      isProductosLoaded = true;
+      if (isProductosLoaded && isMenuLoaded) setCargando(false);
+    }, (error) => {
+      console.error("Error cargando productos:", error);
+    });
 
-        // Si la categoría no existe en el árbol, la creamos
-        if (!tree[cat]) tree[cat] = {};
-        
-        // Si la subcategoría no existe, la creamos como un Set (para evitar varietales duplicados)
-        if (!tree[cat][sub]) tree[cat][sub] = new Set();
-        
-        // Agregamos el varietal solo si tiene uno
-        if (varietal) tree[cat][sub].add(varietal);
-      });
-
-      // 3. Convertimos los "Sets" a "Arrays" ordenados alfabéticamente para que React los pueda dibujar fácil
+    // =========================================================
+    // 2. ESCUCHAMOS EL ÁRBOL DE TAXONOMÍA (EL NUEVO MENÚ OFICIAL)
+    // =========================================================
+    const unsubscribeMenu = onSnapshot(collection(db, "categorias_menu"), (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
       const formattedTree = {};
-      Object.keys(tree).sort().forEach(cat => {
-        formattedTree[cat] = {};
-        Object.keys(tree[cat]).sort().forEach(sub => {
-          formattedTree[cat][sub] = Array.from(tree[cat][sub]).sort();
-        });
+      
+      docs.forEach(cat => {
+        // Solo incluimos la categoría si su switch de 'visible' es true
+        if (cat.visible !== false) { 
+          const catName = cat.nombre || "Sin Nombre";
+          formattedTree[catName] = {};
+          
+          if (cat.subcategorias && Array.isArray(cat.subcategorias)) {
+            cat.subcategorias.forEach(sub => {
+              // Solo incluimos la subcategoría si es visible
+              if (sub.visible !== false) {
+                const subName = sub.nombre || "General";
+                
+                // Extraemos las cepas y filtramos solo las visibles
+                const cepas = sub.cepas 
+                  ? sub.cepas.filter(c => c.visible !== false).map(c => c.nombre)
+                  : [];
+                
+                formattedTree[catName][subName] = cepas;
+              }
+            });
+          }
+        }
       });
 
       setMenuTree(formattedTree);
-      setCargando(false);
+      
+      isMenuLoaded = true;
+      if (isProductosLoaded && isMenuLoaded) setCargando(false);
     }, (error) => {
-      console.error("Error cargando el catálogo público:", error);
-      setCargando(false);
+      console.error("Error cargando el menú:", error);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeProductos();
+      unsubscribeMenu();
+    };
   }, []);
 
   return (

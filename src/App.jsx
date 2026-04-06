@@ -1,48 +1,79 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { CatalogProvider } from './context/CatalogContext';
+import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 
 import Home from './pages/Home';
 import Shop from './pages/Shop';
+import Checkout from './pages/Checkout';
+import Gracias from './pages/Gracias';
 import ProductDetail from './pages/ProductDetail';
 import Login from './pages/Login';
 import AdminSelector from './pages/AdminSelector';
-import LockedCellar from './pages/locked_cellar';
+import LockedCellar from './pages/locked_cellar'; // Ahora este es el Dashboard de los 4 botones
 import LockedStorefront from './pages/locked_storefront';
+
+//SUSCRIPCIONES
+import Suscripciones from './pages/Suscripciones';
+import CheckoutSuscripciones from './pages/CheckoutSuscripciones';
+import GraciasSuscripciones from './pages/GraciasSuscripciones';
+
+// <--BOTONES LOCKED_CELLAR
+import AdminInventario from './pages/AdminInventario'; 
+import AdminVentas from './pages/AdminVentas';
+import AdminClientes from './pages/AdminClientes';
+import AdminAjustes from './pages/AdminAjustes';
 
 function App() {
   return (
     <AuthProvider>
       <CatalogProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            
-            {/* =========================================
-                RUTAS PÚBLICAS (SHOP Y PRODUCTOS)
-                ========================================= */}
-            {/* 1. Shop general */}
+        <CartProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              
+              {/* =========================================
+                  RUTAS PÚBLICAS (SHOP Y PRODUCTOS)
+                  ========================================= */}
             <Route path="/shop" element={<Shop />} />
-            
-            {/* 2. Shop filtrado por Categoría (Ej: /shop/vino) */}
             <Route path="/shop/:categoria" element={<Shop />} />
-            
-            {/* 3. Shop filtrado por Subcategoría (Ej: /shop/vino/tinto) */}
             <Route path="/shop/:categoria/:subcategoria" element={<Shop />} />
             
-            {/* 4. RUTA LARGA DE PRODUCTO (La que pediste) */}
-            <Route path="/shop/:categoria/:subcategoria/:id" element={<ProductDetail />} />
+            {/* NUEVA: Shop filtrado hasta la Cepa (Ej: /shop/Vino/Tinto/Malbec) */}
+            <Route path="/shop/:categoria/:subcategoria/:cepa" element={<Shop />} />
+            {/* LA RUTA DEL PRODUCTO AHORA ES ÚNICA PARA EVITAR CONFLICTOS */}
+            <Route path="/producto/:id" element={<ProductDetail />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/gracias" element={<Gracias />} />
+         
+         {/*RUTA DEde suscripciones*/}
+                <Route path="/suscripciones" element={<Suscripciones />} />
+              <Route path="/checkout-suscripciones" element={<CheckoutSuscripciones />} />
+              <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
 
-            {/* =========================================
-                RUTAS DE ADMINISTRACIÓN
-                ========================================= */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/admin_selector" element={<AdminSelector />} />
-            <Route path="/locked_cellar" element={<LockedCellar />} />
-            <Route path="/locked_storefront" element={<LockedStorefront />} />
-            <Route path="/admin/dashboard" element={<AdminSelector />} />
-          </Routes>
-        </Router>
+              {/* =========================================
+                  RUTAS DE ADMINISTRACIÓN (LOGIN / SELECTOR)
+                  ========================================= */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/admin_selector" element={<AdminSelector />} />
+              <Route path="/admin/dashboard" element={<AdminSelector />} />
+              <Route path="/locked_storefront" element={<LockedStorefront />} />
+
+              {/* =========================================
+                  RUTAS PRIVADAS (LOCKED CELLAR)
+                  ========================================= */}
+              {/* 1. Dashboard Principal (Botones) */}
+              <Route path="/locked_cellar" element={<LockedCellar />} />
+              
+              {/* 2. Inventario (Lo que antes era el locked_cellar original) */}
+              <Route path="/locked_cellar/inventario" element={<AdminInventario />} />
+              <Route path="/locked_cellar/ventas" element={<AdminVentas />} />
+              <Route path="/locked_cellar/clientes" element={<AdminClientes />} />
+              <Route path="/locked_cellar/ajustes" element={<AdminAjustes />} />
+            </Routes>
+          </Router>
+        </CartProvider>
       </CatalogProvider>
     </AuthProvider>
   );
