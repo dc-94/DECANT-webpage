@@ -27,9 +27,10 @@ export default function LockedStorefront() {
   const [anuncios, setAnuncios] = useState([]);
   const [heroSlides, setHeroSlides] = useState([]);
   
+  // 👇 ESTADO LIMPIO: Solo manejamos los logos de las bodegas
   const [seccionClub, setSeccionClub] = useState({ 
-    precioSeleccion1: '', descSeleccion1: '', imgSeleccion1Url: '', imgSeleccion1File: null, bodegasSeleccion1Urls: [], bodegasSeleccion1Files: [],
-    precioSeleccion2: '', descSeleccion2: '', imgSeleccion2Url: '', imgSeleccion2File: null, bodegasSeleccion2Urls: [], bodegasSeleccion2Files: [] 
+    bodegasSeleccion1Urls: [], bodegasSeleccion1Files: [],
+    bodegasSeleccion2Urls: [], bodegasSeleccion2Files: [] 
   });
   
   const [seccionDeli, setSeccionDeli] = useState({ 
@@ -47,7 +48,6 @@ export default function LockedStorefront() {
         if (data.valueProps && data.valueProps.length > 0) {
           setValueProps(data.valueProps);
         } else {
-          // Valores por defecto si no existen
           setValueProps([
             { titulo: 'Envíos a todo el país', subtitulo: 'Con embalaje de seguridad' },
             { titulo: 'Cuidado en Bodega', subtitulo: 'Temperatura controlada' },
@@ -59,7 +59,9 @@ export default function LockedStorefront() {
         if (data.anuncios) setAnuncios(data.anuncios);
         if (data.heroSlides && data.heroSlides.length > 0) setHeroSlides(data.heroSlides); else setHeroSlides([crearSlideVacio()]);
         
-        if (data.seccionClub) setSeccionClub({ ...data.seccionClub, imgSeleccion1File: null, imgSeleccion2File: null, bodegasSeleccion1Files: [], bodegasSeleccion2Files: [] });
+        // 👇 Carga inicial limpia
+        if (data.seccionClub) setSeccionClub({ ...data.seccionClub, bodegasSeleccion1Files: [], bodegasSeleccion2Files: [] });
+        
         if (data.seccionDeli) setSeccionDeli({ ...data.seccionDeli, imgProductoFile: null });
         if (data.imagenesCategorias) setCatImagesUrls(data.imagenesCategorias);
       } else {
@@ -82,7 +84,6 @@ export default function LockedStorefront() {
   const handleSlideChange = (index, campo, valor) => { const nuevos = [...heroSlides]; nuevos[index][campo] = valor; setHeroSlides(nuevos); };
   const handleValuePropChange = (index, campo, valor) => { const nuevos = [...valueProps]; nuevos[index][campo] = valor; setValueProps(nuevos); };
 
-  // UPLOAD CON CARPETAS DINÁMICAS CLOUDINARY
   const uploadImage = async (file, folder = "decant/storefront/general") => {
     if (!file) return "";
     try {
@@ -104,19 +105,14 @@ export default function LockedStorefront() {
         return { ...slide, imageUrl: finalUrl, imageFile: null };
       }));
 
-      let finalClubImg1 = seccionClub.imgSeleccion1Url; let finalClubImg2 = seccionClub.imgSeleccion2Url;
-      if (seccionClub.imgSeleccion1File) finalClubImg1 = await uploadImage(seccionClub.imgSeleccion1File, "decant/storefront/club/botellas");
-      if (seccionClub.imgSeleccion2File) finalClubImg2 = await uploadImage(seccionClub.imgSeleccion2File, "decant/storefront/club/botellas");
-
+      // 👇 GUARDADO LIMPIO: Solo procesamos los logos de las bodegas
       let bodegas1Urls = seccionClub.bodegasSeleccion1Urls || [];
       let bodegas2Urls = seccionClub.bodegasSeleccion2Urls || [];
       if (seccionClub.bodegasSeleccion1Files?.length > 0) {
-        const up1 = await Promise.all(seccionClub.bodegasSeleccion1Files.map(f => uploadImage(f, "decant/storefront/club/bodegas")));
-        bodegas1Urls = up1; 
+        bodegas1Urls = await Promise.all(seccionClub.bodegasSeleccion1Files.map(f => uploadImage(f, "decant/storefront/club/bodegas")));
       }
       if (seccionClub.bodegasSeleccion2Files?.length > 0) {
-        const up2 = await Promise.all(seccionClub.bodegasSeleccion2Files.map(f => uploadImage(f, "decant/storefront/club/bodegas")));
-        bodegas2Urls = up2;
+        bodegas2Urls = await Promise.all(seccionClub.bodegasSeleccion2Files.map(f => uploadImage(f, "decant/storefront/club/bodegas")));
       }
 
       let finalDeliImg = seccionDeli.imgProductoUrl;
@@ -134,9 +130,10 @@ export default function LockedStorefront() {
         valueProps, 
         anuncios, 
         heroSlides: slidesParaGuardar,
+        // 👇 PAYLOAD LIMPIO: Solo subimos las URLs de los logos
         seccionClub: { 
-          precioSeleccion1: seccionClub.precioSeleccion1, descSeleccion1: seccionClub.descSeleccion1, imgSeleccion1Url: finalClubImg1, bodegasSeleccion1Urls: bodegas1Urls,
-          precioSeleccion2: seccionClub.precioSeleccion2, descSeleccion2: seccionClub.descSeleccion2, imgSeleccion2Url: finalClubImg2, bodegasSeleccion2Urls: bodegas2Urls
+          bodegasSeleccion1Urls: bodegas1Urls,
+          bodegasSeleccion2Urls: bodegas2Urls
         },
         seccionDeli: { ...seccionDeli, imgProductoUrl: finalDeliImg, imgProductoFile: null },
         imagenesCategorias: finalCatUrls,
@@ -171,7 +168,6 @@ export default function LockedStorefront() {
 
         <div className="flex flex-col gap-2 max-w-4xl">
           
-          {/* 1. CATEGORÍAS */}
           <AccordionSection title="1. Grilla de Categorías (Bento Box Aleatorio)" isOpen={openSection === 'categorias'} onClick={() => setOpenSection(openSection === 'categorias' ? '' : 'categorias')}>
             <p className="text-[10px] text-dark-grey mb-6">El diseño mezclará las fotos en distintos tamaños y agregará bloques transparentes para un efecto de "mosaico incompleto".</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -186,7 +182,6 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 2. ICONOS DE CONFIANZA */}
           <AccordionSection title="2. Iconos de Confianza (Value Props)" isOpen={openSection === 'valueProps'} onClick={() => setOpenSection(openSection === 'valueProps' ? '' : 'valueProps')}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {valueProps.map((prop, i) => (
@@ -199,7 +194,6 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 3. ANUNCIOS */}
           <AccordionSection title="3. Banner de Anuncios" isOpen={openSection === 'anuncios'} onClick={() => setOpenSection(openSection === 'anuncios' ? '' : 'anuncios')}>
              <div className="flex flex-col gap-6">
               {anuncios.map((a, i) => (
@@ -217,7 +211,6 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 4. HERO */}
           <AccordionSection title="4. Carrusel Principal (Hero)" isOpen={openSection === 'hero'} onClick={() => setOpenSection(openSection === 'hero' ? '' : 'hero')}>
              <button onClick={() => setHeroSlides([...heroSlides, crearSlideVacio()])} className="mb-6 bg-extra-black text-white px-4 py-2 text-[9px] font-bold uppercase hover:bg-brand-orange outline-none transition-colors"> + Agregar Slide </button>
             <div className="flex flex-col gap-8">
@@ -250,30 +243,28 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 5. CLUB DE VINOS */}
-          <AccordionSection title="5. Club de Vinos (Suscripciones)" isOpen={openSection === 'club'} onClick={() => setOpenSection(openSection === 'club' ? '' : 'club')}>
+          {/* 5. CLUB DE VINOS (VERSIÓN LIMPIA) */}
+          <AccordionSection title="5. Logos Bodegas (Suscripciones)" isOpen={openSection === 'club'} onClick={() => setOpenSection(openSection === 'club' ? '' : 'club')}>
+            <p className="text-[10px] text-dark-grey mb-6 leading-relaxed max-w-2xl">
+              Las imágenes de las botellas, los precios y descripciones de las membresías ahora se gestionan directamente desde la pestaña <b>Productos</b> (Subiendo un producto "Descorche" o "Terruño"). Aquí solo puedes actualizar los logos de las bodegas participantes del mes.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {[1, 2].map(num => (
                 <div key={num} className="bg-gray-50 p-5 border border-light-blue/10 rounded-sm">
-                  <p className="text-[10px] font-bold uppercase mb-4 text-brand-orange">Selección {num}</p>
-                  
-                  <label className="block text-[8px] font-bold mb-1 uppercase opacity-50">Precio Mensual ($)</label>
-                  <input type="number" value={seccionClub[`precioSeleccion${num}`]} onChange={e => setSeccionClub({...seccionClub, [`precioSeleccion${num}`]: e.target.value})} className="w-full border p-2 text-xs mb-3 bg-white outline-none focus:border-brand-orange" placeholder="Ej: 45000" />
-
-                  <div className="mb-4">
-                    <label className="block text-[9px] font-bold text-dark-grey mb-1 uppercase tracking-widest">Imagen Botellas *</label>
-                    <input type="file" accept="image/*" onChange={e => setSeccionClub({...seccionClub, [`imgSeleccion${num}File`]: e.target.files[0]})} className="text-[10px] p-1.5 bg-white border border-light-blue/10 w-full cursor-pointer" />
-                    {seccionClub[`imgSeleccion${num}Url`] && !seccionClub[`imgSeleccion${num}File`] && <p className="text-[9px] text-green-600 font-bold uppercase mt-1.5">Imagen en servidor.</p>}
-                  </div>
-                  
-                  <label className="block text-[8px] font-bold mb-1 uppercase opacity-50 text-dark-grey">Descripción</label>
-                  <textarea rows="4" value={seccionClub[`descSeleccion${num}`]} onChange={e => setSeccionClub({...seccionClub, [`descSeleccion${num}`]: e.target.value})} className="w-full border p-2 text-xs mb-4 outline-none resize-none bg-white focus:border-brand-orange" />
+                  <p className="text-[10px] font-bold uppercase mb-4 text-brand-orange">
+                    Plan {num === 1 ? 'Descorche' : 'Terruño'}
+                  </p>
                   
                   <div className="mb-4">
-                    <label className="block text-[9px] font-bold text-dark-grey mb-1 uppercase tracking-widest">Logos Bodegas (Subida Múltiple)</label>
+                    <label className="block text-[9px] font-bold text-dark-grey mb-1 uppercase tracking-widest">Subir Nuevos Logos</label>
                     <input type="file" accept="image/*" multiple onChange={e => setSeccionClub({...seccionClub, [`bodegasSeleccion${num}Files`]: Array.from(e.target.files)})} className="text-[10px] p-1.5 bg-white border border-light-blue/10 w-full cursor-pointer" />
-                    <p className="text-[8px] text-light-blue mt-1">Sube 2 o más archivos a la vez. Esto reemplazará los logos actuales.</p>
-                    {seccionClub[`bodegasSeleccion${num}Urls`]?.length > 0 && <p className="text-[9px] text-green-600 font-bold uppercase mt-1.5">{seccionClub[`bodegasSeleccion${num}Urls`].length} logos en servidor.</p>}
+                    <p className="text-[8px] text-light-blue mt-1">Sube 2 o más archivos a la vez. Esto reemplazará los logos actuales en la página web.</p>
+                    
+                    {seccionClub[`bodegasSeleccion${num}Urls`]?.length > 0 && (
+                      <p className="text-[9px] text-green-600 font-bold uppercase mt-3">
+                        {seccionClub[`bodegasSeleccion${num}Urls`].length} logos en servidor.
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

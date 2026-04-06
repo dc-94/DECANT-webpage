@@ -24,6 +24,8 @@ import AdminVentas from './pages/AdminVentas';
 import AdminClientes from './pages/AdminClientes';
 import AdminAjustes from './pages/AdminAjustes';
 
+
+
 function App() {
   return (
     <AuthProvider>

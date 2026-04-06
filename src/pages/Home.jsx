@@ -5,6 +5,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import MainNavbar from "../components/layout/MainNavbar";
 import ProductCard from "../components/public/ProductCard"; 
 import { useCatalog } from "../context/CatalogContext"; 
+import Footer from '../components/layout/Footer';
 
 const TrustIcons = [
   <svg className="w-6 h-6 mb-3 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
@@ -40,26 +41,42 @@ export default function Home() {
     if (categoriasMain.length === 0) return [];
     
     const spans = [
-      'col-span-2 row-span-2', // Grande
-      'col-span-1 row-span-1', // Chico
-      'col-span-2 row-span-1', // Horizontal
-      'col-span-1 row-span-2'  // Vertical
+      'col-span-2 row-span-2', 
+      'col-span-1 row-span-1', 
+      'col-span-2 row-span-1', 
+      'col-span-1 row-span-2'  
     ];
 
     let items = categoriasMain.map((cat, i) => ({
       type: 'cat',
       cat,
       span: spans[i % spans.length],
-      sortKey: Math.random() // Mezclar orden
+      sortKey: Math.random() 
     }));
 
-    // Insertamos 2 bloques vacíos para el efecto mosaico incompleto
     for (let i = 0; i < 2; i++) {
       items.push({ type: 'empty', id: `empty-${i}`, span: 'col-span-1 row-span-1', sortKey: Math.random() });
     }
 
     return items.sort((a, b) => a.sortKey - b.sortKey);
   }, [categoriasMain]);
+
+  // ==========================================
+  // LÓGICA DE DATOS: Planes de Suscripción
+  // ==========================================
+  
+  // 1. Encontrar los productos en la base de datos
+  const productosSuscripcion = productos.filter(p => 
+    p.categoria && p.categoria.toLowerCase().includes('suscripci')
+  );
+
+  const planDescorche = productosSuscripcion.find(p => 
+    p.nombre && p.nombre.toLowerCase().includes('descorche')
+  );
+  
+  const planTerruno = productosSuscripcion.find(p => 
+    p.nombre && (p.nombre.toLowerCase().includes('terruño') || p.nombre.toLowerCase().includes('terruno'))
+  );
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-poppins text-[10px] font-black uppercase tracking-widest text-brand-orange animate-pulse">Cargando...</div>;
 
@@ -73,6 +90,20 @@ export default function Home() {
     { titulo: 'Cuidado en Bodega', subtitulo: 'Temperatura controlada' },
     { titulo: 'Asesoría Personalizada', subtitulo: 'Sommelier a disposición' },
     { titulo: 'Pago Seguro', subtitulo: 'Transacciones encriptadas' }
+  ];
+
+  // 2. Unificamos los datos de la Base de Datos con los Logos del Storefront
+  const planesHome = [
+    {
+      titulo: 'Selección Descorche',
+      planData: planDescorche,
+      logosBodegas: club.bodegasSeleccion1Urls || []
+    },
+    {
+      titulo: 'Selección Terruño',
+      planData: planTerruno,
+      logosBodegas: club.bodegasSeleccion2Urls || []
+    }
   ];
 
   return (
@@ -145,7 +176,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SECCIÓN CLUB DE VINOS */}
+      {/* SECCIÓN CLUB DE VINOS CONECTADA A LA BASE DE DATOS */}
       <section className="w-full bg-[#f8f8f8] py-24 border-y border-dark-blue/5">
         <div className="max-w-[95rem] mx-auto px-6 md:px-12">
           <div className="flex flex-col items-center mb-16 text-center">
@@ -154,28 +185,50 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            {[1, 2].map(num => (
-              <div key={num} className="group relative bg-white p-8 md:p-12 shadow-sm hover:shadow-xl transition-all duration-700 flex flex-col justify-between">
-                <div className="flex flex-col lg:flex-row gap-8 items-start">
+            {planesHome.map((plan, index) => (
+              <div key={index} className="group relative bg-white p-8 md:p-12 shadow-sm hover:shadow-xl transition-all duration-700 flex flex-col justify-between h-full">
+                <div className="flex flex-col lg:flex-row gap-8 items-start h-full">
+                  
+                  {/* IMAGEN DEL PRODUCTO (Desde BD) */}
                   <div className="w-full lg:w-1/2 aspect-[3/4] overflow-hidden bg-gray-50 flex items-center justify-center p-4">
-                    <img src={club[`imgSeleccion${num}Url`]} className="w-full h-full object-contain transition-transform duration-1000 group-hover:scale-105" alt={`Selección ${num}`} />
-                  </div>
-                  <div className="w-full lg:w-1/2 flex flex-col h-full">
-                    <h4 className="font-playfair italic text-3xl text-dark-blue mb-2">Selección {num === 1 ? 'Esencial' : 'Exclusiva'}</h4>
-                    {club[`precioSeleccion${num}`] && (
-                      <span className="font-poppins text-brand-orange text-lg font-black tracking-widest mb-6 block">
-                        ${Number(club[`precioSeleccion${num}`]).toLocaleString('es-AR')} <span className="text-[9px] text-light-blue font-medium">/MES</span>
-                      </span>
+                    {plan.planData?.imageUrl ? (
+                      <img src={plan.planData.imageUrl} className="w-full h-full object-contain transition-transform duration-1000 group-hover:scale-105 mix-blend-multiply" alt={plan.titulo} />
+                    ) : (
+                       <span className="text-xs text-light-blue/50 uppercase tracking-widest font-bold">Sin Imagen</span>
                     )}
-                    <p className="text-xs text-light-blue leading-relaxed mb-6 whitespace-pre-wrap">{club[`descSeleccion${num}`]}</p>
-                    <div className="flex flex-wrap gap-4 items-center mt-auto grayscale opacity-60">
-                      {club[`bodegasSeleccion${num}Urls`]?.map((logo, i) => <img key={i} src={logo} className="h-8 w-auto object-contain" alt="Bodega" />)}
-                    </div>
+                  </div>
+                  
+                  <div className="w-full lg:w-1/2 flex flex-col h-full">
+                    <h4 className="font-playfair italic text-3xl text-dark-blue mb-2">{plan.titulo}</h4>
+                    
+                    {/* PRECIO (Desde BD) */}
+                    {plan.planData?.precioFinal ? (
+                      <span className="font-poppins text-brand-orange text-lg font-black tracking-widest mb-6 block">
+                        ${Number(plan.planData.precioFinal).toLocaleString('es-AR')} <span className="text-[9px] text-light-blue font-medium">/MES</span>
+                      </span>
+                    ) : (
+                      <span className="font-poppins text-light-blue/50 text-sm font-black tracking-widest mb-6 block">Próximamente</span>
+                    )}
+
+                    {/* DESCRIPCIÓN (Desde BD) */}
+                    <p className="text-xs text-light-blue leading-relaxed mb-6 whitespace-pre-wrap flex-grow">
+                      {plan.planData?.descripcion || "Ideal para descubrir nuevas cepas y bodegas boutique asegurando siempre una mesa bien servida."}
+                    </p>
+                    
+                    {/* LOGOS DE BODEGAS (Desde Storefront Admin) */}
+                    {plan.logosBodegas && plan.logosBodegas.length > 0 && (
+                      <div className="flex flex-wrap gap-4 items-center mt-auto pt-6 border-t border-light-blue/10 grayscale opacity-60">
+                        {plan.logosBodegas.map((logo, i) => (
+                          <img key={i} src={logo} className="h-8 w-auto object-contain" alt="Bodega" />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
           </div>
+          
           <div className="flex justify-center mt-16">
             <Link to="/suscripciones" className="bg-brand-orange text-brand-white font-poppins text-[11px] font-black uppercase tracking-[0.2em] px-12 py-5 hover:bg-dark-orange transition-all shadow-xl">
               Sé parte del Club
@@ -191,7 +244,6 @@ export default function Home() {
              <img src={deli.imgProductoUrl} className="w-full max-h-[600px] object-contain drop-shadow-2xl relative z-10" alt="Deli Destacado" />
           </div>
           <div className="w-full md:w-1/2 relative z-10">
-             {/* Icono gigante DETRÁS del texto */}
              <div className="absolute top-0 right-0 text-[15rem] opacity-5 select-none pointer-events-none -z-10 leading-none -mt-10 -mr-10">
                 {deli.tema === 'cafe' ? '☕' : '🌿'}
              </div>
@@ -220,6 +272,8 @@ export default function Home() {
         .delay-100 { animation-delay: 0.15s; }
         .delay-200 { animation-delay: 0.3s; }
       `}} />
+
+      <Footer />
     </div>
   );
 }
