@@ -43,13 +43,13 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Columna 3: Ayuda & Legal */}
+          {/* Columna 3: Ayuda & Legal (Actualizada con los Hash Links) */}
           <div className="flex flex-col">
             <h3 className="font-playfair italic text-xl text-brand-white mb-6">Ayuda & Legal</h3>
             <ul className="flex flex-col gap-4">
-              <li><Link to="/contacto" className="text-[11px] font-bold uppercase tracking-widest text-light-blue hover:text-light-orange transition-colors">Contacto / FAQ</Link></li>
-              <li><Link to="/terminos" className="text-[11px] font-bold uppercase tracking-widest text-light-blue hover:text-light-orange transition-colors">Términos y Condiciones</Link></li>
-              <li><Link to="/envios" className="text-[11px] font-bold uppercase tracking-widest text-light-blue hover:text-light-orange transition-colors">Políticas de Envío</Link></li>
+              <li><Link to="/ayuda#contacto" className="text-[11px] font-bold uppercase tracking-widest text-light-blue hover:text-light-orange transition-colors">Contacto / FAQ</Link></li>
+              <li><Link to="/ayuda#envios" className="text-[11px] font-bold uppercase tracking-widest text-light-blue hover:text-light-orange transition-colors">Pagos y Envíos</Link></li>
+              <li><Link to="/ayuda#devoluciones" className="text-[11px] font-bold uppercase tracking-widest text-light-blue hover:text-light-orange transition-colors">Políticas de Devolución</Link></li>
             </ul>
           </div>
         </div>

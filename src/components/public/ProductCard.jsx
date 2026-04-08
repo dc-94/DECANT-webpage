@@ -46,17 +46,17 @@ export default function ProductCard({ producto }) {
     }
   };
 
-  // AQUÍ ESTÁ LA MAGIA: Ruta limpia y directa al producto
-  const urlLarga = `/producto/${producto.id}`;
+  // 👉 LA RUTA SEGURA (Slug o ID)
+  const productUrl = `/producto/${producto.slug || producto.id}`;
 
   return (
     <div className="group flex flex-col h-full bg-transparent font-poppins">
       
       {/* =========================================
-          1. ZONA IMAGEN
+          1. ZONA IMAGEN (Envuelto en Link seguro)
           ========================================= */}
-      <div className="relative aspect-[3/4] flex items-center justify-center overflow-hidden p-0 bg-transparent flex-shrink-0">
-        <div className="absolute inset-0 flex items-center justify-center z-0 opacity-15 transition-transform duration-1000 group-hover:scale-110">
+      <Link to={productUrl} className="relative aspect-[3/4] flex items-center justify-center overflow-hidden p-0 bg-transparent flex-shrink-0 block outline-none">
+        <div className="absolute inset-0 flex items-center justify-center z-0 opacity-15 transition-transform duration-1000 group-hover:scale-110 pointer-events-none">
            <BlobProducto className="w-[90%] h-[90%] text-light-blue" /> 
         </div>
 
@@ -67,18 +67,16 @@ export default function ProductCard({ producto }) {
             className={`relative z-10 h-[80%] object-contain transition-transform duration-700 group-hover:scale-105 ${sinStock ? 'grayscale opacity-30' : ''}`} 
           />
         ) : (
-          <div className="text-[10px] uppercase tracking-widest opacity-20 italic font-playfair">Sin Imagen</div>
+          <div className="text-[10px] uppercase tracking-widest opacity-20 italic font-playfair relative z-10">Sin Imagen</div>
         )}
-
-        <Link to={urlLarga} className="absolute inset-0 z-30"></Link>
-      </div>
+      </Link>
 
       {/* =========================================
-          2. ZONA INFO (flex-1 empuja los botones al fondo)
+          2. ZONA INFO
           ========================================= */}
       <div className="flex flex-col flex-1 mt-3">
         
-        {/* LEYENDA ESTADO (A Pedido / Stock) - Ocupa ancho completo */}
+        {/* LEYENDA ESTADO */}
         <div className="h-6 flex items-start justify-center w-full mb-3 flex-shrink-0">
           {producto.aPedido ? (
             <div className="bg-extra-black text-brand-white text-[9px] font-black uppercase tracking-[0.4em] py-1.5 w-full text-center shadow-sm">
@@ -91,10 +89,10 @@ export default function ProductCard({ producto }) {
           ) : null}
         </div>
 
-        {/* NOMBRE */}
+        {/* NOMBRE (Envuelto en Link seguro) */}
         <div className="mb-2">
-          <Link to={urlLarga} className="relative z-30">
-            <h3 className="font-playfair italic text-xl md:text-2xl leading-tight text-dark-blue line-clamp-3">
+          <Link to={productUrl} className="outline-none block">
+            <h3 className="font-playfair italic text-xl md:text-2xl leading-tight text-dark-blue line-clamp-3 hover:text-brand-orange transition-colors">
               {producto.nombre}
             </h3>
           </Link>
@@ -113,11 +111,9 @@ export default function ProductCard({ producto }) {
         </div>
 
         {/* =========================================
-            PRECIOS Y DESCUENTOS (Pegados al fondo con mt-auto)
+            PRECIOS Y DESCUENTOS
             ========================================= */}
         <div className="mt-auto flex flex-col pt-2">
-          
-          {/* Fila 1: Label de Descuento (Mantiene el espacio de h-5 para que todo alinee) */}
           <div className="h-5 flex items-end mb-1">
             {tieneDescuento && (producto.descuentoPorcentaje > 0 || mostrarLabelAdicional) && (
               <div className="flex flex-row items-center bg-white border border-brand-orange text-brand-orange rounded-[4px] overflow-hidden w-max shadow-sm">
@@ -134,8 +130,6 @@ export default function ProductCard({ producto }) {
               </div>
             )}
           </div>
-
-          {/* Fila 2: Precios */}
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-xl md:text-2xl font-semibold text-dark-blue whitespace-nowrap">
               {formatPrice(producto.precioFinal)}
@@ -150,14 +144,17 @@ export default function ProductCard({ producto }) {
       </div>
 
       {/* =========================================
-          3. ACCIONES (Contenedor fijo de botón)
+          3. ACCIONES
           ========================================= */}
       <div className="mt-3 h-[42px] flex-shrink-0 relative z-30">
         {!showQuantity ? (
           <button 
-            onClick={() => !sinStock && setShowQuantity(true)}
+            onClick={(e) => {
+              e.preventDefault();
+              if(!sinStock) setShowQuantity(true);
+            }}
             disabled={sinStock}
-            className={`w-full h-full group/btn flex items-center justify-between pl-5 pr-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300
+            className={`w-full h-full group/btn flex items-center justify-between pl-5 pr-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 outline-none
               ${sinStock 
                 ? 'bg-light-grey text-dark-grey cursor-not-allowed' 
                 : 'bg-brand-orange text-brand-white hover:bg-dark-orange shadow-md'}`}
@@ -168,8 +165,8 @@ export default function ProductCard({ producto }) {
         ) : (
           <div className="flex items-center border border-brand-orange h-full animate-in fade-in zoom-in duration-300">
             <button 
-              onClick={restar}
-              className="w-10 h-full hover:bg-brand-orange/10 transition-colors text-lg flex items-center justify-center text-brand-orange"
+              onClick={(e) => { e.preventDefault(); restar(e); }}
+              className="w-10 h-full hover:bg-brand-orange/10 transition-colors text-lg flex items-center justify-center text-brand-orange outline-none"
             >
               {cantidad === 1 ? (
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -181,20 +178,21 @@ export default function ProductCard({ producto }) {
             </span>
             
             <button 
-              onClick={sumar}
-              className="w-10 h-full hover:bg-brand-orange/10 transition-colors text-lg flex items-center justify-center text-brand-orange"
+              onClick={(e) => { e.preventDefault(); sumar(e); }}
+              className="w-10 h-full hover:bg-brand-orange/10 transition-colors text-lg flex items-center justify-center text-brand-orange outline-none"
             >
               +
             </button>
             
             <button 
               onClick={(e) => { 
+                e.preventDefault(); 
                 e.stopPropagation(); 
-                addToCart(producto, cantidad); // Agrega al carrito global
-                setShowQuantity(false);        // Cierra el selector
-                setCantidad(1);                // Resetea a 1 para la próxima vez
+                addToCart(producto, cantidad); 
+                setShowQuantity(false);        
+                setCantidad(1);                
               }}
-              className="bg-brand-orange text-brand-white h-full px-3 flex items-center justify-center hover:bg-dark-orange transition-colors"
+              className="bg-brand-orange text-brand-white h-full px-3 flex items-center justify-center hover:bg-dark-orange transition-colors outline-none"
             >
               <ShoppingBagIcon className="w-4 h-4" />
             </button>

@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useCatalog } from '../context/CatalogContext';
+import SEO from '../components/public/SEO';
 import MainNavbar from '../components/layout/MainNavbar';
 import ProductCard from '../components/public/ProductCard';
 import ProductFilter from '../components/public/ProductFilter';
+import Footer from '../components/layout/Footer';
 
 export default function Shop() {
   const { categoria, subcategoria, cepa } = useParams();
@@ -24,9 +26,13 @@ export default function Shop() {
   const subFormat = capitalize(subcategoria);
   const cepaFormat = capitalize(cepa);
 
-  // 1. FILTRADO POR URL (Categoría > Subcategoría > Cepa)
+  // 1. FILTRADO POR URL (Categoría > Subcategoría > Cepa) Y EXCLUSIÓN DE SUSCRIPCIONES
   const productosContextoURL = useMemo(() => {
     let base = [...(productos || [])];
+    
+    // 👉 REGLA DE ORO: Ocultar suscripciones del catálogo público
+    base = base.filter(p => !p.categoria || !p.categoria.toLowerCase().includes('suscripci'));
+
     if (categoria) base = base.filter(p => p.categoria?.toLowerCase().trim() === categoria.toLowerCase().trim());
     if (subcategoria) base = base.filter(p => p.subcategoria?.toLowerCase().trim() === subcategoria.toLowerCase().trim());
     if (cepa) base = base.filter(p => p.varietal?.toLowerCase().trim() === cepa.toLowerCase().trim());
@@ -66,8 +72,11 @@ export default function Shop() {
   // 3. GENERADOR DE 4 RECOMENDADOS ALEATORIOS GLOBALES
   const recomendadosAleatorios = useMemo(() => {
     if (!productos || productos.length === 0) return [];
-    // Mezclamos el catálogo y tomamos 4
-    return [...productos].sort(() => 0.5 - Math.random()).slice(0, 4);
+    
+    // 👉 También ocultamos suscripciones de los recomendados
+    const sinSuscripciones = productos.filter(p => !p.categoria || !p.categoria.toLowerCase().includes('suscripci'));
+    
+    return sinSuscripciones.sort(() => 0.5 - Math.random()).slice(0, 4);
   }, [productos]);
 
   // 4. TÍTULO DINÁMICO
@@ -82,6 +91,10 @@ export default function Shop() {
   if (cargando) {
     return (
       <div className="min-h-screen bg-neutral-white flex flex-col">
+        <SEO 
+          title={categoria ? `Comprar ${categoria}` : "Catálogo Completo"} 
+          description="Explora nuestra cava. Vinos de autor, partidas limitadas y selecciones exclusivas listas para llegar a tu copa."
+        />
         <MainNavbar />
         <div className="flex-1 flex items-center justify-center">
           <p className="font-poppins text-brand-orange uppercase tracking-[0.3em] text-[10px] animate-pulse font-black">
@@ -212,6 +225,7 @@ export default function Shop() {
 
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

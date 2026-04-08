@@ -22,6 +22,19 @@ const obtenerColorBlob = (categoria, subcategoria) => {
   return "text-gray-300/50"; 
 };
 
+// 👉 NUEVA FUNCIÓN PARA GENERAR URLS AMIGABLES
+const generarSlug = (texto) => {
+  return texto
+    .toString()
+    .toLowerCase()
+    .trim()
+    .normalize('NFD') // Quita acentos
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 -]/g, '') // Borra caracteres raros
+    .replace(/\s+/g, '-') // Cambia espacios por guiones
+    .replace(/-+/g, '-'); // Quita guiones repetidos
+};
+
 export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
   const [loading, setLoading] = useState(false);
   const [imageFile, setImageFile] = useState(null);
@@ -125,11 +138,9 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
         const catLimpia = categoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
         
         if (subcategoriaName) {
-          // Si hay subcategoría, anida la carpeta
           const subcatLimpia = subcategoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
           data.append("folder", `decant/catalog/${catLimpia}/${subcatLimpia}`);
         } else {
-          // Si solo hay categoría
           data.append("folder", `decant/catalog/${catLimpia}`);
         }
       } else {
@@ -153,7 +164,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
 
   const cerrarModal = () => setProductoEnAccion(null);
 
-  // --- FUNCIÓN ELIMINAR ---
   const handleEliminar = async () => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta etiqueta de la cava? Esta acción no se puede deshacer.")) {
       setLoading(true);
@@ -178,7 +188,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     try {
       let finalImageUrl = imagenGuardadaUrl; 
       
-      // === CORRECCIÓN AQUÍ: Se envían los 4 parámetros a Cloudinary ===
       if (imageFile) {
         finalImageUrl = await uploadImage(imageFile, formData.categoria, formData.subcategoria, formData.producto); 
       }
@@ -190,13 +199,17 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
       const precioBase = costoNum + (costoNum * (gananciaNum / 100)); 
       const precioFinal = precioBase - (precioBase * (descNum / 100)); 
 
+      // 👉 GENERAMOS EL SLUG CON EL NOMBRE DEL PRODUCTO
+      const slugGenerado = generarSlug(formData.producto);
+
       const payload = {
         categoria: formData.categoria, subcategoria: formData.subcategoria, varietal: formData.varietal,
         bodega: formData.bodega, origen: formData.origen, nombre: formData.producto, descripcion: formData.descripcion, 
         costo: costoNum, ganancia: gananciaNum, precioBase, precioFinal, descuentoPorcentaje: descNum, 
         descuentoNombre: formData.descuentoNombre, mostrarDescuento: formData.mostrarDescuento, 
         stock: stockNum, aPedido: formData.aPedido, imageUrl: finalImageUrl,
-        etiquetas: formData.etiquetas 
+        etiquetas: formData.etiquetas,
+        slug: slugGenerado // 👉 LO GUARDAMOS EN FIREBASE
       };
 
       if (productoEnAccion?.modo === "editar") {
@@ -215,7 +228,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
 
   const precioBaseCalculado = (parseFloat(formData.costo) || 0) * (1 + ((parseFloat(formData.ganancia) || 0) / 100));
   const precioFinalCalculado = precioBaseCalculado - (precioBaseCalculado * ((parseFloat(formData.descuentoPorcentaje) || 0) / 100));
-  const stockActual = parseInt(formData.stock) || 0;
 
   // --- COMPONENTE DE TARJETA ---
   const TarjetaPreview = () => (

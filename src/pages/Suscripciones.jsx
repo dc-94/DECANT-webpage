@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import SEO from '../components/public/SEO';
 import MainNavbar from '../components/layout/MainNavbar';
 import { useCart } from '../context/CartContext';
 import { useCatalog } from '../context/CatalogContext'; 
-
+import Footer from '../components/layout/Footer';
 const StepIcons = [
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.773 2.853M7.228 22l.758-2.83M14.44 5.06h-.01M2.014 12.062H2" /></svg>,
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
@@ -66,6 +67,11 @@ export default function Suscripciones() {
 
   return (
     <div className="min-h-screen bg-neutral-white font-poppins text-extra-black">
+      <SEO 
+        title="Membresías y Club de Vinos" 
+        description="El Ritual Decant. Suscríbete a nuestras selecciones Descorche o Terruño y recibe las mejores etiquetas en tu puerta cada mes."
+        image="https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&q=80" // La imagen hero de esa página
+      />
       <MainNavbar />
 
       <section className="relative w-full py-32 md:py-40 bg-extra-black overflow-hidden flex items-center justify-center border-b border-light-blue/10">
@@ -265,7 +271,7 @@ export default function Suscripciones() {
           </div>
         </div>
       </section>
-
+            <Footer />
     </div>
   );
 }

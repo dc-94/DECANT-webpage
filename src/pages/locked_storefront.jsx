@@ -17,6 +17,19 @@ const AccordionSection = ({ title, children, isOpen, onClick }) => (
   </section>
 );
 
+// Objeto base para una nueva receta vacía
+const crearRecetaVacia = () => ({
+  id: Date.now().toString(),
+  tema: 'oliva', 
+  tituloReceta: '', 
+  textoReceta: '', 
+  linkProducto: '', 
+  botonSecundarioTexto: 'Descubrí Deli', 
+  botonSecundarioLink: '/shop/deli', 
+  imgProductoUrl: '', 
+  imgProductoFile: null
+});
+
 export default function LockedStorefront() {
   const { menuTree } = useCatalog(); 
   const [loading, setLoading] = useState(true);
@@ -27,15 +40,13 @@ export default function LockedStorefront() {
   const [anuncios, setAnuncios] = useState([]);
   const [heroSlides, setHeroSlides] = useState([]);
   
-  // 👇 ESTADO LIMPIO: Solo manejamos los logos de las bodegas
   const [seccionClub, setSeccionClub] = useState({ 
     bodegasSeleccion1Urls: [], bodegasSeleccion1Files: [],
     bodegasSeleccion2Urls: [], bodegasSeleccion2Files: [] 
   });
   
-  const [seccionDeli, setSeccionDeli] = useState({ 
-    tema: 'oliva', tituloReceta: '', textoReceta: '', linkProducto: '', botonSecundarioTexto: 'Descubrí Deli', botonSecundarioLink: '/shop/deli', imgProductoUrl: '', imgProductoFile: null 
-  });
+  // 👉 NUEVO ESTADO: Un array de recetas en lugar de una sola
+  const [listaDeli, setListaDeli] = useState([crearRecetaVacia()]);
   
   const [catImagesUrls, setCatImagesUrls] = useState({});
   const [catImagesFiles, setCatImagesFiles] = useState({});
@@ -59,10 +70,15 @@ export default function LockedStorefront() {
         if (data.anuncios) setAnuncios(data.anuncios);
         if (data.heroSlides && data.heroSlides.length > 0) setHeroSlides(data.heroSlides); else setHeroSlides([crearSlideVacio()]);
         
-        // 👇 Carga inicial limpia
         if (data.seccionClub) setSeccionClub({ ...data.seccionClub, bodegasSeleccion1Files: [], bodegasSeleccion2Files: [] });
         
-        if (data.seccionDeli) setSeccionDeli({ ...data.seccionDeli, imgProductoFile: null });
+        // 👉 Carga de la lista de recetas (con fallback de retrocompatibilidad por si había una sola guardada antes)
+        if (data.listaDeli && data.listaDeli.length > 0) {
+            setListaDeli(data.listaDeli.map(d => ({...d, imgProductoFile: null})));
+        } else if (data.seccionDeli) {
+            setListaDeli([{ ...data.seccionDeli, id: Date.now().toString(), imgProductoFile: null }]);
+        }
+
         if (data.imagenesCategorias) setCatImagesUrls(data.imagenesCategorias);
       } else {
         setHeroSlides([crearSlideVacio()]);
@@ -83,6 +99,9 @@ export default function LockedStorefront() {
   const handleAnuncioChange = (index, campo, valor) => { const nuevos = [...anuncios]; nuevos[index][campo] = valor; setAnuncios(nuevos); };
   const handleSlideChange = (index, campo, valor) => { const nuevos = [...heroSlides]; nuevos[index][campo] = valor; setHeroSlides(nuevos); };
   const handleValuePropChange = (index, campo, valor) => { const nuevos = [...valueProps]; nuevos[index][campo] = valor; setValueProps(nuevos); };
+  
+  // 👉 Handler para las recetas
+  const handleDeliChange = (index, campo, valor) => { const nuevos = [...listaDeli]; nuevos[index][campo] = valor; setListaDeli(nuevos); };
 
   const uploadImage = async (file, folder = "decant/storefront/general") => {
     if (!file) return "";
@@ -105,7 +124,6 @@ export default function LockedStorefront() {
         return { ...slide, imageUrl: finalUrl, imageFile: null };
       }));
 
-      // 👇 GUARDADO LIMPIO: Solo procesamos los logos de las bodegas
       let bodegas1Urls = seccionClub.bodegasSeleccion1Urls || [];
       let bodegas2Urls = seccionClub.bodegasSeleccion2Urls || [];
       if (seccionClub.bodegasSeleccion1Files?.length > 0) {
@@ -115,8 +133,12 @@ export default function LockedStorefront() {
         bodegas2Urls = await Promise.all(seccionClub.bodegasSeleccion2Files.map(f => uploadImage(f, "decant/storefront/club/bodegas")));
       }
 
-      let finalDeliImg = seccionDeli.imgProductoUrl;
-      if (seccionDeli.imgProductoFile) finalDeliImg = await uploadImage(seccionDeli.imgProductoFile, "decant/storefront/deli");
+      // 👉 Procesamos todas las recetas y subimos sus imágenes si hay nuevas
+      const deliParaGuardar = await Promise.all(listaDeli.map(async (deli) => {
+          let finalUrl = deli.imgProductoUrl;
+          if (deli.imgProductoFile) finalUrl = await uploadImage(deli.imgProductoFile, "decant/storefront/deli") || finalUrl;
+          return { ...deli, imgProductoUrl: finalUrl, imgProductoFile: null };
+      }));
 
       let finalCatUrls = { ...catImagesUrls };
       const categoriasActivas = Object.keys(menuTree || {});
@@ -130,12 +152,11 @@ export default function LockedStorefront() {
         valueProps, 
         anuncios, 
         heroSlides: slidesParaGuardar,
-        // 👇 PAYLOAD LIMPIO: Solo subimos las URLs de los logos
         seccionClub: { 
           bodegasSeleccion1Urls: bodegas1Urls,
           bodegasSeleccion2Urls: bodegas2Urls
         },
-        seccionDeli: { ...seccionDeli, imgProductoUrl: finalDeliImg, imgProductoFile: null },
+        listaDeli: deliParaGuardar, // Guardamos el array completo
         imagenesCategorias: finalCatUrls,
         updatedAt: new Date()
       };
@@ -243,7 +264,6 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 5. CLUB DE VINOS (VERSIÓN LIMPIA) */}
           <AccordionSection title="5. Logos Bodegas (Suscripciones)" isOpen={openSection === 'club'} onClick={() => setOpenSection(openSection === 'club' ? '' : 'club')}>
             <p className="text-[10px] text-dark-grey mb-6 leading-relaxed max-w-2xl">
               Las imágenes de las botellas, los precios y descripciones de las membresías ahora se gestionan directamente desde la pestaña <b>Productos</b> (Subiendo un producto "Descorche" o "Terruño"). Aquí solo puedes actualizar los logos de las bodegas participantes del mes.
@@ -271,28 +291,42 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 6. DELI */}
-          <AccordionSection title="6. Deli & Tips" isOpen={openSection === 'deli'} onClick={() => setOpenSection(openSection === 'deli' ? '' : 'deli')}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-poppins">
-              <div className="flex flex-col gap-4">
-                <select value={seccionDeli.tema} onChange={e => setSeccionDeli({...seccionDeli, tema: e.target.value})} className="border p-2.5 text-xs font-bold uppercase bg-white outline-none">
-                  <option value="oliva">🌿 Tema Oliva</option> <option value="cafe">☕ Tema Café</option>
-                </select>
-                <div>
-                  <label className="block text-[9px] font-bold text-dark-grey mb-1 uppercase tracking-widest">Imagen Producto *</label>
-                  <input type="file" accept="image/*" onChange={e => setSeccionDeli({...seccionDeli, imgProductoFile: e.target.files[0]})} className="text-[10px] p-1.5 bg-white border border-light-blue/10 w-full cursor-pointer" />
-                  {seccionDeli.imgProductoUrl && !seccionDeli.imgProductoFile && <p className="text-[9px] text-green-600 font-bold uppercase mt-1.5">Imagen en servidor.</p>}
+          {/* 6. DELI - CARRUSEL INVISIBLE */}
+          <AccordionSection title="6. Deli & Tips (Carrusel Aleatorio)" isOpen={openSection === 'deli'} onClick={() => setOpenSection(openSection === 'deli' ? '' : 'deli')}>
+            <p className="text-[10px] text-dark-grey mb-6 leading-relaxed">
+              Carga múltiples recetas o tips. Cada vez que un usuario entre a la web, el sistema elegirá una al azar para mostrar.
+            </p>
+            <button onClick={() => setListaDeli([...listaDeli, crearRecetaVacia()])} className="mb-6 bg-extra-black text-white px-4 py-2 text-[9px] font-bold uppercase hover:bg-brand-orange outline-none transition-colors"> + Agregar Receta </button>
+
+            <div className="flex flex-col gap-8">
+              {listaDeli.map((deliItem, i) => (
+                <div key={deliItem.id} className="grid grid-cols-1 md:grid-cols-2 gap-6 font-poppins bg-gray-50 p-5 border border-light-blue/10 relative rounded-sm">
+                  
+                  {listaDeli.length > 1 && (
+                    <button onClick={() => { if(window.confirm("¿Eliminar receta?")) setListaDeli(listaDeli.filter((_, idx) => idx !== i)) }} className="absolute top-3 right-3 text-[9px] text-red-500 font-bold uppercase hover:underline outline-none z-10 bg-gray-50 px-2 py-1">Eliminar</button>
+                  )}
+
+                  <div className="flex flex-col gap-4 mt-4 md:mt-0">
+                    <select value={deliItem.tema} onChange={e => handleDeliChange(i, 'tema', e.target.value)} className="border p-2.5 text-xs font-bold uppercase bg-white outline-none">
+                      <option value="oliva">🌿 Tema Oliva</option> <option value="cafe">☕ Tema Café</option>
+                    </select>
+                    <div>
+                      <label className="block text-[9px] font-bold text-dark-grey mb-1 uppercase tracking-widest">Imagen Producto *</label>
+                      <input type="file" accept="image/*" onChange={e => handleDeliChange(i, 'imgProductoFile', e.target.files[0])} className="text-[10px] p-1.5 bg-white border border-light-blue/10 w-full cursor-pointer" />
+                      {deliItem.imgProductoUrl && !deliItem.imgProductoFile && <p className="text-[9px] text-green-600 font-bold uppercase mt-1.5">Imagen en servidor.</p>}
+                    </div>
+                    <input type="text" value={deliItem.linkProducto} onChange={e => handleDeliChange(i, 'linkProducto', e.target.value)} placeholder="Link Botón Principal (/shop/id)" className="border p-2.5 text-xs bg-white outline-none" />
+                    <div className="grid grid-cols-2 gap-2">
+                       <input type="text" value={deliItem.botonSecundarioTexto} onChange={e => handleDeliChange(i, 'botonSecundarioTexto', e.target.value)} placeholder="Txt Botón 2" className="border p-2.5 text-xs bg-white outline-none" />
+                       <input type="text" value={deliItem.botonSecundarioLink} onChange={e => handleDeliChange(i, 'botonSecundarioLink', e.target.value)} placeholder="Link Botón 2" className="border p-2.5 text-xs bg-white outline-none" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-4">
+                    <input type="text" value={deliItem.tituloReceta} onChange={e => handleDeliChange(i, 'tituloReceta', e.target.value)} placeholder="Título" className="border p-2.5 text-xs font-bold bg-white outline-none" />
+                    <textarea rows="7" value={deliItem.textoReceta} onChange={e => handleDeliChange(i, 'textoReceta', e.target.value)} placeholder="Instrucciones..." className="border p-2.5 text-xs outline-none resize-none bg-white" />
+                  </div>
                 </div>
-                <input type="text" value={seccionDeli.linkProducto} onChange={e => setSeccionDeli({...seccionDeli, linkProducto: e.target.value})} placeholder="Link Botón Principal (/shop/id)" className="border p-2.5 text-xs bg-white outline-none" />
-                <div className="grid grid-cols-2 gap-2">
-                   <input type="text" value={seccionDeli.botonSecundarioTexto} onChange={e => setSeccionDeli({...seccionDeli, botonSecundarioTexto: e.target.value})} placeholder="Txt Botón 2" className="border p-2.5 text-xs bg-white outline-none" />
-                   <input type="text" value={seccionDeli.botonSecundarioLink} onChange={e => setSeccionDeli({...seccionDeli, botonSecundarioLink: e.target.value})} placeholder="Link Botón 2" className="border p-2.5 text-xs bg-white outline-none" />
-                </div>
-              </div>
-              <div className="flex flex-col gap-4">
-                <input type="text" value={seccionDeli.tituloReceta} onChange={e => setSeccionDeli({...seccionDeli, tituloReceta: e.target.value})} placeholder="Título" className="border p-2.5 text-xs font-bold bg-white outline-none" />
-                <textarea rows="7" value={seccionDeli.textoReceta} onChange={e => setSeccionDeli({...seccionDeli, textoReceta: e.target.value})} placeholder="Instrucciones..." className="border p-2.5 text-xs outline-none resize-none bg-white" />
-              </div>
+              ))}
             </div>
           </AccordionSection>
 

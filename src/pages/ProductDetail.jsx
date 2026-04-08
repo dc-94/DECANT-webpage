@@ -1,3 +1,4 @@
+import SEO from '../components/public/SEO';
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -6,6 +7,7 @@ import MainNavbar from '../components/layout/MainNavbar';
 import BlobProducto from '../components/icons/BlobProducto';
 import ProductCard from '../components/public/ProductCard';
 import DynamicGuide from '../components/public/DynamicGuide';
+import Footer from '../components/layout/Footer';
 
 const ShoppingBagIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -14,28 +16,24 @@ const ShoppingBagIcon = ({ className }) => (
 );
 
 export default function ProductDetail() {
-  const { id, categoria, subcategoria } = useParams();
+  const { id } = useParams(); // Ya no necesitamos sacar categoria y subcategoria de la URL
   const { productos, cargando } = useCatalog();
   const { addToCart } = useCart();
   const [cantidad, setCantidad] = useState(1);
 
-  const producto = productos.find(p => p.id === id);
+const producto = productos.find(p => p.slug === id || p.id === id);
 
-
-  // LÓGICA DE PRODUCTOS RELACIONADOS (Automático y Contextual)
+  // LÓGICA DE PRODUCTOS RELACIONADOS
   const productosRelacionados = useMemo(() => {
     if (!productos || !producto) return [];
     
-    // 1. Buscamos de la misma subcategoría (ej: otros Malbecs)
     let relacionados = productos.filter(p => p.id !== producto.id && p.subcategoria === producto.subcategoria);
     
-    // 2. Si no llegamos a 3, rellenamos con la misma categoría padre (ej: otros Tintos)
     if (relacionados.length < 3) {
       const extra = productos.filter(p => p.id !== producto.id && p.categoria === producto.categoria && !relacionados.includes(p));
       relacionados = [...relacionados, ...extra];
     }
     
-    // 3. Mezclamos aleatoriamente y cortamos en 3 exactos
     return relacionados.sort(() => 0.5 - Math.random()).slice(0, 3);
   }, [productos, producto]);
 
@@ -53,6 +51,28 @@ export default function ProductDetail() {
     </div>
   );
 
+  // ==========================================
+  //SEO 
+  const jsonLd = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": producto.nombre,
+    "image": producto.imageUrl,
+    "description": producto.descripcion || `Exclusivo ${producto.varietal || producto.categoria} disponible en Decant.`,
+    "sku": producto.id,
+    "brand": {
+      "@type": "Brand",
+      "name": producto.bodega || "Decant"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": typeof window !== 'undefined' ? window.location.href : '',
+      "priceCurrency": "ARS",
+      "price": producto.precioFinal,
+      "availability": producto.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+    }
+  };
+
   const formatPrice = (price) => new Intl.NumberFormat('es-AR', {
     style: 'currency', currency: 'ARS', maximumFractionDigits: 0
   }).format(price || 0);
@@ -67,17 +87,27 @@ export default function ProductDetail() {
 
   const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : '';
 
+  // ==========================================
+  // BREADCRUMB DINÁMICO (Basado en el objeto producto)
+  // ==========================================
   const getTruncatedBreadcrumb = () => {
     const segments = [
       { label: 'Home', link: '/' },
       { label: 'Shop', link: '/shop' }
     ];
 
-    if (categoria) segments.push({ label: capitalize(categoria), link: `/shop/${categoria}` });
-    if (subcategoria) segments.push({ label: capitalize(subcategoria), link: `/shop/${categoria}/${subcategoria}` });
+    // Extraemos las categorías directamente del producto de la BD
+    const cat = producto.categoria;
+    const sub = producto.subcategoria;
+    const cepa = producto.varietal || producto.cepa; // Soporta ambos nombres
+
+    if (cat) segments.push({ label: capitalize(cat), link: `/shop/${cat.toLowerCase()}` });
+    if (cat && sub) segments.push({ label: capitalize(sub), link: `/shop/${cat.toLowerCase()}/${sub.toLowerCase()}` });
+    if (cat && sub && cepa) segments.push({ label: capitalize(cepa), link: `/shop/${cat.toLowerCase()}/${sub.toLowerCase()}/${cepa.toLowerCase()}` });
 
     const items = [];
 
+    // Lógica para colapsar si es muy largo
     if (segments.length > 4) {
       items.push(<span key="ellips" className="opacity-60">...</span>);
       items.push(<span key="sep-ellips" className="mx-1">/</span>);
@@ -107,6 +137,15 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-neutral-white overflow-x-hidden">
+      
+      {/* INYECCIÓN DEL SCRIPT SEO */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    <SEO 
+      title={producto.nombre} 
+      description={producto.descripcion || `Adquiere ${producto.nombre} de bodega ${producto.bodega} en Decant.`}
+      image={producto.imageUrl}
+      type="product"
+    />
       <MainNavbar />
 
       <div className="w-full border-b border-dark-blue/10 pt-36 lg:pt-44 flex-shrink-0 relative z-20">
@@ -234,8 +273,6 @@ export default function ProductDetail() {
             </div>
           )}
         </section>
-      
-
       </main>  
 
       {/* =========================================
@@ -251,7 +288,6 @@ export default function ProductDetail() {
               </Link>
             </div>
             
-            {/* Mantenemos el "aire" sofisticado de las cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-24 px-0 lg:px-12 mt-12">
               {productosRelacionados.map(prod => (
                 <ProductCard key={prod.id} producto={prod} />
@@ -266,10 +302,12 @@ export default function ProductDetail() {
           </div>
         </section>
       )}
-{/* =========================================
+
+      {/* =========================================
           SECCIÓN: GUÍA DINÁMICA DE DEGUSTACIÓN / TIPS
           ========================================= */}
-        <DynamicGuide key={producto.id} categoria={producto.categoria} />      
+      <DynamicGuide key={producto.id} categoria={producto.categoria} />    
+      <Footer />  
     </div>
   );
 }
