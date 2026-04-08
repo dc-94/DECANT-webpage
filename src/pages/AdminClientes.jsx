@@ -1,21 +1,125 @@
+import { useState, useEffect } from 'react';
+import { db } from '../config/firebase';
+import { collection, onSnapshot, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
+import { DetallePedidoDrawer } from './AdminVentas'; 
 
 export default function AdminClientes() {
+  const navigate = useNavigate();
+  const [clientes, setClientes] = useState([]);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
+  const [historialPedidos, setHistorialPedidos] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'clientes'), (snapshot) => {
+      setClientes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (clienteSeleccionado) {
+      const fetchHistorial = async () => {
+        const q = query(collection(db, 'pedidos'), where('numeroCliente', '==', clienteSeleccionado.numeroCliente));
+        const snap = await getDocs(q);
+        setHistorialPedidos(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds));
+      };
+      fetchHistorial();
+    }
+  }, [clienteSeleccionado]);
+
+  const actualizarEstadoPedido = async (id, nuevoEstado) => {
+    await updateDoc(doc(db, 'pedidos', id), { estado: nuevoEstado });
+    setHistorialPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p));
+    if (ventaSeleccionada?.id === id) setVentaSeleccionada(prev => ({ ...prev, estado: nuevoEstado }));
+  };
+
+  const clientesFiltrados = clientes.filter(c => (c.nombre + c.apellido + c.email + c.numeroCliente).toLowerCase().includes(busqueda.toLowerCase()));
+
   return (
-    <div className="min-h-screen bg-extra-black font-poppins text-brand-white flex flex-col">
+    <div className="min-h-screen bg-[#F8F9FA] font-poppins text-slate-800 flex flex-col">
       <AdminNavbar />
-      
-      <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <div className="mb-6 text-dark-grey">
-          <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+      <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
+        <button onClick={() => navigate('/locked_cellar')} className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 hover:text-brand-orange mb-8 transition-colors">← Volver al Panel</button>
+        
+        <div className="flex flex-col md:flex-row justify-between mb-10 gap-6">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Base de Clientes</h1>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Perfiles de socios registrados</p>
+          </div>
+          <input 
+            type="text" 
+            placeholder="Buscar por nombre o PIN..." 
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="px-5 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-orange w-full md:w-80 shadow-sm"
+          />
         </div>
-        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-widest mb-4 text-brand-white">
-          Base de Clientes
-        </h1>
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-light-blue">
-          Módulo en construcción...
-        </p>
+
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+              <tr>
+                <th className="px-8 py-5">Socio</th>
+                <th className="px-8 py-5">Nombre y Apellido</th>
+                <th className="px-8 py-5">Membresía</th>
+                <th className="px-8 py-5 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {clientesFiltrados.map(c => (
+                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-8 py-5"><span className="font-bold text-slate-900 bg-slate-100 px-3 py-1.5 rounded-lg tracking-widest">{c.numeroCliente}</span></td>
+                  <td className="px-8 py-5 font-bold text-slate-900">{c.nombre} {c.apellido}</td>
+                  <td className="px-8 py-5">{c.badge ? <span className="bg-orange-100 text-orange-700 text-[9px] px-3 py-1.5 rounded-lg font-black uppercase tracking-[0.2em]">{c.badge}</span> : <span className="text-slate-300 font-bold uppercase text-[10px]">Sin Club</span>}</td>
+                  <td className="px-8 py-5 text-right"><button onClick={() => setClienteSeleccionado(c)} className="text-brand-orange text-[10px] font-black tracking-[0.3em] uppercase hover:underline">Ver Ficha</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </main>
+
+      {/* DRAWER 1: EXPEDIENTE CLIENTE (Solo Poppins) */}
+      {clienteSeleccionado && (
+        <div className="fixed inset-0 z-[100] flex justify-end font-poppins">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setClienteSeleccionado(null)} />
+          <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+            <div className="p-8 border-b flex justify-between bg-slate-50 sticky top-0">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{clienteSeleccionado.nombre} {clienteSeleccionado.apellido}</h2>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-1">Socio N° {clienteSeleccionado.numeroCliente}</p>
+              </div>
+              <button onClick={() => setClienteSeleccionado(null)} className="text-slate-400 hover:text-slate-900 text-3xl">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-8">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-3 mb-6">Historial de Compras</h4>
+              <div className="space-y-4">
+                {historialPedidos.length === 0 ? (
+                    <div className="py-10 text-center text-slate-400 text-sm font-medium italic">No se registran compras todavía.</div>
+                ) : historialPedidos.map(p => (
+                  <div key={p.id} onClick={() => setVentaSeleccionada(p)} className="flex justify-between items-center p-6 bg-white border border-slate-100 rounded-2xl cursor-pointer hover:border-brand-orange hover:shadow-lg transition-all">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Orden #{p.id.slice(0,5).toUpperCase()}</p>
+                      <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">{new Date(p.createdAt?.seconds * 1000).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black text-slate-900">${p.totalFinal?.toLocaleString()}</p>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${p.estado === 'Enviado' ? 'text-green-500' : 'text-brand-orange'}`}>{p.estado}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER 2: REUTILIZADO DE VENTAS (Misma lógica) */}
+      <DetallePedidoDrawer pedido={ventaSeleccionada} onClose={() => setVentaSeleccionada(null)} onActualizarEstado={actualizarEstadoPedido} />
     </div>
   );
 }

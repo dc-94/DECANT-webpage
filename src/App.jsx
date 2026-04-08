@@ -22,6 +22,7 @@ import Ayuda from './pages/Ayuda';
 import Suscripciones from './pages/Suscripciones';
 import CheckoutSuscripciones from './pages/CheckoutSuscripciones';
 import GraciasSuscripciones from './pages/GraciasSuscripciones';
+import Tracking from './pages/Tracking';
 
 // <--BOTONES LOCKED_CELLAR
 import AdminInventario from './pages/AdminInventario'; 
@@ -59,6 +60,7 @@ function App() {
                 
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/gracias" element={<Gracias />} />
+                <Route path="/pedido/:id" element={<Tracking />} />
           
                 {/* RUTA DE suscripciones */}
                 <Route path="/suscripciones" element={<Suscripciones />} />
