@@ -36,13 +36,6 @@ export default function LockedCellar() {
       color: 'hover:border-brand-orange hover:text-brand-orange'
     },
     {
-      titulo: 'Diseño Storefront',
-      descripcion: 'Edición visual del inicio: banners, anuncios, carrusel y secciones.',
-      icono: <Icons.Storefront />,
-      link: '/locked_storefront', // El panel que acabamos de hacer
-      color: 'hover:border-brand-orange hover:text-brand-orange'
-    },
-    {
       titulo: 'Base de Clientes',
       descripcion: 'Directorio de compradores y su historial de consumo.',
       icono: <Icons.Clientes />,

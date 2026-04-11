@@ -1,7 +1,29 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { db } from '../../config/firebase'; // 👉 ¡CORREGIDO AQUÍ! (Dos puntos dobles)
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const [datosEmpresa, setDatosEmpresa] = useState({
+    instagram: 'https://instagram.com/_decantclub', 
+  });
+
+  useEffect(() => {
+    const fetchAjustes = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
+        if (docSnap.exists() && docSnap.data().datosEmpresa) {
+          setDatosEmpresa(docSnap.data().datosEmpresa);
+        }
+      } catch (error) {
+        console.error("Error cargando ajustes footer:", error);
+      }
+    };
+    fetchAjustes();
+  }, []);
+
+  const linkIg = datosEmpresa.instagram.startsWith('http') ? datosEmpresa.instagram : `https://${datosEmpresa.instagram}`;
 
   return (
     <footer className="bg-extra-black pt-20 pb-10 px-6 font-poppins border-t border-light-orange/10">
@@ -18,9 +40,9 @@ export default function Footer() {
             <p className="text-light-blue text-xs leading-relaxed mb-6 max-w-xs">
               Elevando el ritual del vino. Una selección curada para paladares inquietos, directo de la bodega a tu copa.
             </p>
-            {/* Instagram */}
+            {/* Instagram Dinámico */}
             <a 
-              href="https://instagram.com/tu_usuario" 
+              href={linkIg} 
               target="_blank" 
               rel="noopener noreferrer" 
               className="text-light-blue hover:text-light-orange transition-colors outline-none"
@@ -43,7 +65,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Columna 3: Ayuda & Legal (Actualizada con los Hash Links) */}
+          {/* Columna 3: Ayuda & Legal */}
           <div className="flex flex-col">
             <h3 className="font-playfair italic text-xl text-brand-white mb-6">Ayuda & Legal</h3>
             <ul className="flex flex-col gap-4">

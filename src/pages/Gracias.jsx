@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { db } from '../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const CheckIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M5 13l4 4L19 7" /></svg>
@@ -7,15 +9,28 @@ const CheckIcon = ({ className }) => (
 
 export default function Gracias() {
   const [pedido, setPedido] = useState(null);
+  const [whatsappEmpresa, setWhatsappEmpresa] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    const data = localStorage.getItem('decant_last_order');
-    if (data) {
-      setPedido(JSON.parse(data));
-    } else {
-      navigate('/');
-    }
+    const fetchDatos = async () => {
+      const data = localStorage.getItem('decant_last_order');
+      if (data) {
+        setPedido(JSON.parse(data));
+      } else {
+        navigate('/');
+      }
+
+      try {
+        const storefrontSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
+        if (storefrontSnap.exists() && storefrontSnap.data().datosEmpresa?.whatsapp) {
+          setWhatsappEmpresa(storefrontSnap.data().datosEmpresa.whatsapp);
+        }
+      } catch (err) {
+         console.error(err);
+      }
+    };
+    fetchDatos();
   }, [navigate]);
 
   if (!pedido) return null;
@@ -38,7 +53,6 @@ export default function Gracias() {
             Tu cava está en camino. Puedes seguir el estado de tu orden en tiempo real aquí:
           </p>
           
-          {/* BOTÓN DE TRACKING VIP */}
           <Link to={`/pedido/${pedido.id}`} className="block w-full border-2 border-brand-orange text-brand-orange text-center py-4 rounded-lg font-bold text-[10px] uppercase tracking-widest hover:bg-brand-orange hover:text-white transition-all mb-8">
             Ver Seguimiento de mi Orden
           </Link>
@@ -57,7 +71,10 @@ export default function Gracias() {
 
         <div className="flex flex-col items-center gap-6">
           <Link to="/shop" className="w-full bg-dark-blue text-brand-white text-center text-[10px] font-black uppercase tracking-[0.2em] px-8 py-5 hover:bg-brand-orange transition-colors outline-none">Volver a la tienda</Link>
-          <a href={`https://wa.me/TUNUMERO?text=Hola! Soy ${pedido.formData.nombre}. Mi pedido es el #${pedido.ordenDisplay}.`} target="_blank" rel="noreferrer" className="text-[10px] text-light-blue hover:text-brand-orange underline decoration-light-blue/30 underline-offset-4 outline-none uppercase tracking-widest font-bold">¿Dudas? WhatsApp</a>
+          
+          {whatsappEmpresa && (
+            <a href={`https://wa.me/${whatsappEmpresa}?text=Hola! Soy ${pedido.formData.nombre}. Mi pedido es el #${pedido.ordenDisplay}.`} target="_blank" rel="noreferrer" className="text-[10px] text-light-blue hover:text-brand-orange underline decoration-light-blue/30 underline-offset-4 outline-none uppercase tracking-widest font-bold">¿Dudas? WhatsApp</a>
+          )}
         </div>
       </div>
     </div>

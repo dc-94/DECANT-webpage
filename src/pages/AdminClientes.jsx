@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore'; // 👉 Importamos deleteDoc
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import { DetallePedidoDrawer } from './AdminVentas'; 
+import { enviarMailBrevo } from '../services/brevoService'; 
 
 export default function AdminClientes() {
   const navigate = useNavigate();
@@ -31,10 +32,59 @@ export default function AdminClientes() {
     }
   }, [clienteSeleccionado]);
 
-  const actualizarEstadoPedido = async (id, nuevoEstado) => {
-    await updateDoc(doc(db, 'pedidos', id), { estado: nuevoEstado });
-    setHistorialPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p));
-    if (ventaSeleccionada?.id === id) setVentaSeleccionada(prev => ({ ...prev, estado: nuevoEstado }));
+  // LÓGICA DE BREVO INCORPORADA A LA ACTUALIZACIÓN
+  const actualizarEstadoPedido = async (id, nuevoEstado, pedidoActual) => {
+    try {
+      // 1. Actualizar Firebase
+      await updateDoc(doc(db, 'pedidos', id), { estado: nuevoEstado });
+      
+      // 2. Actualizar UI Local
+      setHistorialPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p));
+      if (ventaSeleccionada?.id === id) {
+        setVentaSeleccionada(prev => ({ ...prev, estado: nuevoEstado }));
+      }
+
+      // 3. Disparo Automático de Correos
+      const numeroOrden = id.slice(0, 5).toUpperCase();
+
+      if (nuevoEstado === 'En Preparación' && pedidoActual) {
+        const exito = await enviarMailBrevo({
+          toEmail: pedidoActual.clienteEmail,
+          toName: pedidoActual.formData.nombre,
+          templateId: 7,
+          params: { nombre: pedidoActual.formData.nombre, orden: numeroOrden }
+        });
+        if (exito) alert("Correo de 'En Preparación' enviado.");
+      } 
+      else if (nuevoEstado === 'Entregado' && pedidoActual) {
+        const exito = await enviarMailBrevo({
+          toEmail: pedidoActual.clienteEmail,
+          toName: pedidoActual.formData.nombre,
+          templateId: 6,
+          params: { nombre: pedidoActual.formData.nombre, orden: numeroOrden }
+        });
+        if (exito) alert("Correo de 'Pedido Entregado' enviado.");
+      }
+    } catch (error) {
+      console.error("Error al actualizar estado:", error);
+      alert("Hubo un error al actualizar el estado.");
+    }
+  };
+
+  // 👉 NUEVA FUNCIÓN: ELIMINAR CLIENTE
+  const handleEliminarCliente = async () => {
+    const confirmar = window.confirm(`¿Estás seguro de eliminar a ${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido}? Esta acción borrará su ficha de cliente definitivamente.`);
+    
+    if (confirmar) {
+      try {
+        await deleteDoc(doc(db, 'clientes', clienteSeleccionado.id));
+        setClienteSeleccionado(null); // Cerramos el drawer
+        alert("Cliente eliminado correctamente.");
+      } catch (error) {
+        console.error("Error al eliminar cliente:", error);
+        alert("Hubo un error al intentar eliminar el cliente.");
+      }
+    }
   };
 
   const clientesFiltrados = clientes.filter(c => (c.nombre + c.apellido + c.email + c.numeroCliente).toLowerCase().includes(busqueda.toLowerCase()));
@@ -83,11 +133,12 @@ export default function AdminClientes() {
         </div>
       </main>
 
-      {/* DRAWER 1: EXPEDIENTE CLIENTE (Solo Poppins) */}
+      {/* DRAWER 1: EXPEDIENTE CLIENTE */}
       {clienteSeleccionado && (
         <div className="fixed inset-0 z-[100] flex justify-end font-poppins">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setClienteSeleccionado(null)} />
           <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+            
             <div className="p-8 border-b flex justify-between bg-slate-50 sticky top-0">
               <div>
                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{clienteSeleccionado.nombre} {clienteSeleccionado.apellido}</h2>
@@ -95,6 +146,7 @@ export default function AdminClientes() {
               </div>
               <button onClick={() => setClienteSeleccionado(null)} className="text-slate-400 hover:text-slate-900 text-3xl">×</button>
             </div>
+            
             <div className="flex-1 overflow-y-auto p-8">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-3 mb-6">Historial de Compras</h4>
               <div className="space-y-4">
@@ -108,18 +160,35 @@ export default function AdminClientes() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-black text-slate-900">${p.totalFinal?.toLocaleString()}</p>
-                      <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${p.estado === 'Enviado' ? 'text-green-500' : 'text-brand-orange'}`}>{p.estado}</p>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${p.estado === 'Enviado' ? 'text-blue-500' : p.estado === 'Entregado' ? 'text-green-500' : 'text-brand-orange'}`}>{p.estado}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* 👉 BOTÓN ELIMINAR AL FINAL DEL DRAWER */}
+            <div className="p-8 border-t bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+              <button 
+                  onClick={handleEliminarCliente}
+                  className="w-full py-4 text-red-400 hover:text-red-600 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+              >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Eliminar Cliente
+              </button>
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* DRAWER 2: REUTILIZADO DE VENTAS (Misma lógica) */}
-      <DetallePedidoDrawer pedido={ventaSeleccionada} onClose={() => setVentaSeleccionada(null)} onActualizarEstado={actualizarEstadoPedido} />
+      {/* DRAWER 2: REUTILIZADO DE VENTAS */}
+      <DetallePedidoDrawer 
+        pedido={ventaSeleccionada} 
+        onClose={() => setVentaSeleccionada(null)} 
+        onActualizarEstado={actualizarEstadoPedido} 
+        setPedidoSeleccionado={setVentaSeleccionada} 
+      />
     </div>
   );
 }

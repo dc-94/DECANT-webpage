@@ -17,7 +17,6 @@ const AccordionSection = ({ title, children, isOpen, onClick }) => (
   </section>
 );
 
-// Objeto base para una nueva receta vacía
 const crearRecetaVacia = () => ({
   id: Date.now().toString(),
   tema: 'oliva', 
@@ -45,11 +44,18 @@ export default function LockedStorefront() {
     bodegasSeleccion2Urls: [], bodegasSeleccion2Files: [] 
   });
   
-  // 👉 NUEVO ESTADO: Un array de recetas en lugar de una sola
   const [listaDeli, setListaDeli] = useState([crearRecetaVacia()]);
   
   const [catImagesUrls, setCatImagesUrls] = useState({});
   const [catImagesFiles, setCatImagesFiles] = useState({});
+
+  // 👉 NUEVO ESTADO: Datos de la Empresa
+  const [datosEmpresa, setDatosEmpresa] = useState({
+    whatsapp: '5493416878568',
+    email: 'the.decantclub@gmail.com',
+    instagram: 'www.instagram.com/_decantclub',
+    direccion: 'Italia 341, Rosario'
+  });
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'ajustes_storefront', 'home'), (docSnap) => {
@@ -72,7 +78,6 @@ export default function LockedStorefront() {
         
         if (data.seccionClub) setSeccionClub({ ...data.seccionClub, bodegasSeleccion1Files: [], bodegasSeleccion2Files: [] });
         
-        // 👉 Carga de la lista de recetas (con fallback de retrocompatibilidad por si había una sola guardada antes)
         if (data.listaDeli && data.listaDeli.length > 0) {
             setListaDeli(data.listaDeli.map(d => ({...d, imgProductoFile: null})));
         } else if (data.seccionDeli) {
@@ -80,6 +85,10 @@ export default function LockedStorefront() {
         }
 
         if (data.imagenesCategorias) setCatImagesUrls(data.imagenesCategorias);
+
+        // 👉 Cargamos los datos de la empresa si existen en Firebase
+        if (data.datosEmpresa) setDatosEmpresa(data.datosEmpresa);
+
       } else {
         setHeroSlides([crearSlideVacio()]);
         setValueProps([
@@ -99,9 +108,10 @@ export default function LockedStorefront() {
   const handleAnuncioChange = (index, campo, valor) => { const nuevos = [...anuncios]; nuevos[index][campo] = valor; setAnuncios(nuevos); };
   const handleSlideChange = (index, campo, valor) => { const nuevos = [...heroSlides]; nuevos[index][campo] = valor; setHeroSlides(nuevos); };
   const handleValuePropChange = (index, campo, valor) => { const nuevos = [...valueProps]; nuevos[index][campo] = valor; setValueProps(nuevos); };
-  
-  // 👉 Handler para las recetas
   const handleDeliChange = (index, campo, valor) => { const nuevos = [...listaDeli]; nuevos[index][campo] = valor; setListaDeli(nuevos); };
+  
+  // 👉 Handler para Datos Empresa
+  const handleEmpresaChange = (campo, valor) => { setDatosEmpresa(prev => ({ ...prev, [campo]: valor })); };
 
   const uploadImage = async (file, folder = "decant/storefront/general") => {
     if (!file) return "";
@@ -133,7 +143,6 @@ export default function LockedStorefront() {
         bodegas2Urls = await Promise.all(seccionClub.bodegasSeleccion2Files.map(f => uploadImage(f, "decant/storefront/club/bodegas")));
       }
 
-      // 👉 Procesamos todas las recetas y subimos sus imágenes si hay nuevas
       const deliParaGuardar = await Promise.all(listaDeli.map(async (deli) => {
           let finalUrl = deli.imgProductoUrl;
           if (deli.imgProductoFile) finalUrl = await uploadImage(deli.imgProductoFile, "decant/storefront/deli") || finalUrl;
@@ -156,8 +165,9 @@ export default function LockedStorefront() {
           bodegasSeleccion1Urls: bodegas1Urls,
           bodegasSeleccion2Urls: bodegas2Urls
         },
-        listaDeli: deliParaGuardar, // Guardamos el array completo
+        listaDeli: deliParaGuardar, 
         imagenesCategorias: finalCatUrls,
+        datosEmpresa, // 👉 Guardamos los datos de contacto
         updatedAt: new Date()
       };
 
@@ -291,7 +301,6 @@ export default function LockedStorefront() {
             </div>
           </AccordionSection>
 
-          {/* 6. DELI - CARRUSEL INVISIBLE */}
           <AccordionSection title="6. Deli & Tips (Carrusel Aleatorio)" isOpen={openSection === 'deli'} onClick={() => setOpenSection(openSection === 'deli' ? '' : 'deli')}>
             <p className="text-[10px] text-dark-grey mb-6 leading-relaxed">
               Carga múltiples recetas o tips. Cada vez que un usuario entre a la web, el sistema elegirá una al azar para mostrar.
@@ -327,6 +336,31 @@ export default function LockedStorefront() {
                   </div>
                 </div>
               ))}
+            </div>
+          </AccordionSection>
+
+          {/* 👉 NUEVA SECCIÓN: DATOS DE LA EMPRESA */}
+          <AccordionSection title="7. Datos de Contacto y Redes" isOpen={openSection === 'contacto'} onClick={() => setOpenSection(openSection === 'contacto' ? '' : 'contacto')}>
+            <p className="text-[10px] text-dark-grey mb-6 leading-relaxed">
+              Actualiza estos datos y se reflejarán automáticamente en el pie de página (Footer), enlaces de WhatsApp y pantallas de seguimiento.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-5 border border-light-blue/10 rounded-sm">
+              <div>
+                <label className="block text-[9px] font-bold text-dark-grey mb-2 uppercase tracking-widest">WhatsApp (Solo números)</label>
+                <input type="text" value={datosEmpresa.whatsapp} onChange={e => handleEmpresaChange('whatsapp', e.target.value)} placeholder="Ej: 5493416878568" className="w-full border p-2.5 text-xs bg-white outline-none focus:border-brand-orange" />
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-dark-grey mb-2 uppercase tracking-widest">Correo Electrónico</label>
+                <input type="email" value={datosEmpresa.email} onChange={e => handleEmpresaChange('email', e.target.value)} placeholder="Ej: info@tudominio.com" className="w-full border p-2.5 text-xs bg-white outline-none focus:border-brand-orange" />
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-dark-grey mb-2 uppercase tracking-widest">Link de Instagram</label>
+                <input type="text" value={datosEmpresa.instagram} onChange={e => handleEmpresaChange('instagram', e.target.value)} placeholder="Ej: www.instagram.com/_decantclub" className="w-full border p-2.5 text-xs bg-white outline-none focus:border-brand-orange" />
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-dark-grey mb-2 uppercase tracking-widest">Dirección del Local / Retiro</label>
+                <input type="text" value={datosEmpresa.direccion} onChange={e => handleEmpresaChange('direccion', e.target.value)} placeholder="Ej: Italia 341, Rosario" className="w-full border p-2.5 text-xs bg-white outline-none focus:border-brand-orange" />
+              </div>
             </div>
           </AccordionSection>
 

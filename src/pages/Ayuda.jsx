@@ -3,18 +3,39 @@ import { useLocation } from 'react-router-dom';
 import SEO from '../components/public/SEO';
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';
+import { db } from '../config/firebase'; // 👉 Importamos Firebase
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function Ayuda() {
   const location = useLocation();
   const [openSection, setOpenSection] = useState(null);
+  
+  // 👉 ESTADO PARA LOS DATOS DINÁMICOS DE LA EMPRESA
+  const [datosEmpresa, setDatosEmpresa] = useState({
+    whatsapp: '5493410000000',
+    email: 'info@decant.com.ar',
+    direccion: 'Nuestra Cava'
+  });
 
-  // Abrir sección automáticamente si viene un #hash en la URL
   useEffect(() => {
+    // 1. Leer los datos de Firebase
+    const fetchAjustes = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
+        if (docSnap.exists() && docSnap.data().datosEmpresa) {
+          setDatosEmpresa(docSnap.data().datosEmpresa);
+        }
+      } catch (error) {
+        console.error("Error cargando ajustes ayuda:", error);
+      }
+    };
+    fetchAjustes();
+
+    // 2. Lógica del Scroll / Hash link
     window.scrollTo(0, 0);
     const hash = location.hash.replace('#', '');
     if (hash) {
       setOpenSection(hash);
-      // Pequeño delay para hacer scroll hacia la sección
       setTimeout(() => {
         const element = document.getElementById(hash);
         if (element) {
@@ -22,7 +43,6 @@ export default function Ayuda() {
         }
       }, 100);
     } else {
-      // Por defecto abrimos la primera
       setOpenSection('suscripciones');
     }
   }, [location]);
@@ -81,7 +101,7 @@ export default function Ayuda() {
           <div>
             <h4 className="font-bold text-dark-blue mb-2 uppercase tracking-widest text-[11px]">Logística y Envíos</h4>
             <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>Rosario:</strong> Contamos con envíos bonificados o la opción de punto de retiro sin cargo.</li>
+              <li><strong>Rosario:</strong> Contamos con envíos bonificados o la opción de punto de retiro sin cargo en {datosEmpresa.direccion}.</li>
               <li><strong>Envíos Nacionales:</strong> Despachamos mediante logística premium o el transporte que nos indiques. El costo del envío queda a cargo del comprador y se abona según el transporte elegido.</li>
             </ul>
           </div>
@@ -110,7 +130,7 @@ export default function Ayuda() {
           </div>
           <div>
             <h4 className="font-bold text-dark-blue mb-2 uppercase tracking-widest text-[11px]">¿Cómo gestionarlo?</h4>
-            <p>Escribinos a <strong>the.decantclub@gmail.com</strong> indicando en el asunto "Cambio/Devolución" y tu Número de Pedido. Adjuntá fotos si corresponde y nuestro equipo te responderá a la brevedad.</p>
+            <p>Escribinos a <strong>{datosEmpresa.email}</strong> indicando en el asunto "Cambio/Devolución" y tu Número de Pedido. Adjuntá fotos si corresponde y nuestro equipo te responderá a la brevedad.</p>
           </div>
         </div>
       )
@@ -124,15 +144,15 @@ export default function Ayuda() {
           <ul className="space-y-4 mt-4">
             <li className="flex items-center gap-3">
               <svg className="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              <span><strong>E-mail:</strong> the.decantclub@gmail.com</span>
+              <span><strong>E-mail:</strong> {datosEmpresa.email}</span>
             </li>
             <li className="flex items-center gap-3">
               <svg className="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-              <span><strong>WhatsApp:</strong> +54 9 341 XXX-XXXX</span>
+              <span><strong>WhatsApp:</strong> +{datosEmpresa.whatsapp}</span>
             </li>
             <li className="flex items-center gap-3">
               <svg className="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <span><strong>Horarios:</strong> Lunes a Viernes de 10:00 a 18:00 hs.</span>
+              <span><strong>Dirección:</strong> {datosEmpresa.direccion}</span>
             </li>
           </ul>
         </div>
