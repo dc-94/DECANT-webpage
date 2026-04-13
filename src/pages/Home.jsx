@@ -87,7 +87,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-neutral-white overflow-x-hidden font-poppins">
-      <SEO title="Tienda y Club de Vinos Boutique" description="Elevando el ritual del vino. Descubrí nuestra exclusiva selección curada por sommeliers y únete al Club Decant." />
+      <SEO 
+        title="Inicio" 
+        description="Decant - Club de vinos y tienda exclusiva. Descubre etiquetas de partidas limitadas seleccionadas por sommeliers."/>  
       <MainNavbar />
 
       {/* HERO SECTION */}

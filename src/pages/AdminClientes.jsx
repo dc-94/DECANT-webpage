@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore'; // 👉 Importamos deleteDoc
+import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
-import { DetallePedidoDrawer } from './AdminVentas'; 
-import { enviarMailBrevo } from '../services/brevoService'; 
+
+// URL de tu servidor seguro
+const BACKEND_URL = 'https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app';
 
 export default function AdminClientes() {
   const navigate = useNavigate();
@@ -32,38 +33,42 @@ export default function AdminClientes() {
     }
   }, [clienteSeleccionado]);
 
-  // LÓGICA DE BREVO INCORPORADA A LA ACTUALIZACIÓN
   const actualizarEstadoPedido = async (id, nuevoEstado, pedidoActual) => {
     try {
-      // 1. Actualizar Firebase
       await updateDoc(doc(db, 'pedidos', id), { estado: nuevoEstado });
       
-      // 2. Actualizar UI Local
       setHistorialPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p));
       if (ventaSeleccionada?.id === id) {
         setVentaSeleccionada(prev => ({ ...prev, estado: nuevoEstado }));
       }
 
-      // 3. Disparo Automático de Correos
       const numeroOrden = id.slice(0, 5).toUpperCase();
 
       if (nuevoEstado === 'En Preparación' && pedidoActual) {
-        const exito = await enviarMailBrevo({
-          toEmail: pedidoActual.clienteEmail,
-          toName: pedidoActual.formData.nombre,
-          templateId: 7,
-          params: { nombre: pedidoActual.formData.nombre, orden: numeroOrden }
+        await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: pedidoActual.clienteEmail,
+            toName: pedidoActual.formData.nombre,
+            templateId: 7,
+            params: { nombre: pedidoActual.formData.nombre, orden: numeroOrden }
+          })
         });
-        if (exito) alert("Correo de 'En Preparación' enviado.");
+        alert("Correo de 'En Preparación' enviado.");
       } 
       else if (nuevoEstado === 'Entregado' && pedidoActual) {
-        const exito = await enviarMailBrevo({
-          toEmail: pedidoActual.clienteEmail,
-          toName: pedidoActual.formData.nombre,
-          templateId: 6,
-          params: { nombre: pedidoActual.formData.nombre, orden: numeroOrden }
+        await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: pedidoActual.clienteEmail,
+            toName: pedidoActual.formData.nombre,
+            templateId: 6,
+            params: { nombre: pedidoActual.formData.nombre, orden: numeroOrden }
+          })
         });
-        if (exito) alert("Correo de 'Pedido Entregado' enviado.");
+        alert("Correo de 'Pedido Entregado' enviado.");
       }
     } catch (error) {
       console.error("Error al actualizar estado:", error);
@@ -71,14 +76,13 @@ export default function AdminClientes() {
     }
   };
 
-  // 👉 NUEVA FUNCIÓN: ELIMINAR CLIENTE
   const handleEliminarCliente = async () => {
     const confirmar = window.confirm(`¿Estás seguro de eliminar a ${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido}? Esta acción borrará su ficha de cliente definitivamente.`);
     
     if (confirmar) {
       try {
         await deleteDoc(doc(db, 'clientes', clienteSeleccionado.id));
-        setClienteSeleccionado(null); // Cerramos el drawer
+        setClienteSeleccionado(null);
         alert("Cliente eliminado correctamente.");
       } catch (error) {
         console.error("Error al eliminar cliente:", error);
@@ -133,7 +137,6 @@ export default function AdminClientes() {
         </div>
       </main>
 
-      {/* DRAWER 1: EXPEDIENTE CLIENTE */}
       {clienteSeleccionado && (
         <div className="fixed inset-0 z-[100] flex justify-end font-poppins">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setClienteSeleccionado(null)} />
@@ -167,7 +170,6 @@ export default function AdminClientes() {
               </div>
             </div>
 
-            {/* 👉 BOTÓN ELIMINAR AL FINAL DEL DRAWER */}
             <div className="p-8 border-t bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
               <button 
                   onClick={handleEliminarCliente}
@@ -181,14 +183,6 @@ export default function AdminClientes() {
           </div>
         </div>
       )}
-
-      {/* DRAWER 2: REUTILIZADO DE VENTAS */}
-      <DetallePedidoDrawer 
-        pedido={ventaSeleccionada} 
-        onClose={() => setVentaSeleccionada(null)} 
-        onActualizarEstado={actualizarEstadoPedido} 
-        setPedidoSeleccionado={setVentaSeleccionada} 
-      />
     </div>
   );
 }

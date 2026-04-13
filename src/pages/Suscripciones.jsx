@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import SEO from '../components/public/SEO';
 import MainNavbar from '../components/layout/MainNavbar';
 import { useCart } from '../context/CartContext';
@@ -68,10 +67,8 @@ export default function Suscripciones() {
   return (
     <div className="min-h-screen bg-neutral-white font-poppins text-extra-black">
       <SEO 
-        title="Membresías y Club de Vinos" 
-        description="El Ritual Decant. Suscríbete a nuestras selecciones Descorche o Terruño y recibe las mejores etiquetas en tu puerta cada mes."
-        image="https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&q=80" // La imagen hero de esa página
-      />
+        title="Club de Vinos" 
+        description="Únete a nuestro club de vinos y recibe selecciones exclusivas todos los meses en la puerta de tu casa." />
       <MainNavbar />
 
       <section className="relative w-full py-32 md:py-40 bg-extra-black overflow-hidden flex items-center justify-center border-b border-light-blue/10">

@@ -64,6 +64,8 @@ export default function ProductCard({ producto }) {
           <img 
             src={producto.imageUrl} 
             alt={producto.nombre} 
+            loading="lazy"
+            decoding="async"
             className={`relative z-10 h-[80%] object-contain transition-transform duration-700 group-hover:scale-105 ${sinStock ? 'grayscale opacity-30' : ''}`} 
           />
         ) : (

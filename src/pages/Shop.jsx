@@ -7,12 +7,19 @@ import ProductCard from '../components/public/ProductCard';
 import ProductFilter from '../components/public/ProductFilter';
 import Footer from '../components/layout/Footer';
 
+// Constantes de paginación visual
+const ITEMS_POR_PAGINA = 40;
+const ITEMS_AL_CARGAR_MAS = 20;
+
 export default function Shop() {
   const { categoria, subcategoria, cepa } = useParams();
   const { productos, cargando } = useCatalog();
   
   const [orden, setOrden] = useState('recientes');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  
+  // 👉 ESTADO DE PAGINACIÓN VISUAL
+  const [visibleCount, setVisibleCount] = useState(ITEMS_POR_PAGINA);
   
   const [filtros, setFiltros] = useState({
     categoria: [],
@@ -30,7 +37,7 @@ export default function Shop() {
   const productosContextoURL = useMemo(() => {
     let base = [...(productos || [])];
     
-    // 👉 REGLA DE ORO: Ocultar suscripciones del catálogo público
+    // Ocultar suscripciones del catálogo público
     base = base.filter(p => !p.categoria || !p.categoria.toLowerCase().includes('suscripci'));
 
     if (categoria) base = base.filter(p => p.categoria?.toLowerCase().trim() === categoria.toLowerCase().trim());
@@ -39,8 +46,8 @@ export default function Shop() {
     return base;
   }, [productos, categoria, subcategoria, cepa]);
 
-  // 2. FILTRADO DEL SIDEBAR Y ORDENAMIENTO
-  const productosMostrados = useMemo(() => {
+  // 2. FILTRADO DEL SIDEBAR Y ORDENAMIENTO (Toda la data)
+  const productosFiltradosTotal = useMemo(() => {
     let filtrados = [...(productosContextoURL || [])];
 
     if (filtros.categoria.length > 0) {
@@ -69,17 +76,23 @@ export default function Shop() {
     return filtrados;
   }, [productosContextoURL, filtros, orden]);
 
-  // 3. GENERADOR DE 4 RECOMENDADOS ALEATORIOS GLOBALES
+  // 👉 3. CORTE VISUAL: Solo tomamos la cantidad "visibleCount" para renderizar
+  const productosMostrados = useMemo(() => {
+    return productosFiltradosTotal.slice(0, visibleCount);
+  }, [productosFiltradosTotal, visibleCount]);
+
+  // Si el usuario cambia de categoría o filtro, reseteamos la paginación a 40
+  useMemo(() => {
+    setVisibleCount(ITEMS_POR_PAGINA);
+  }, [categoria, subcategoria, cepa, filtros, orden]);
+
+  // 4. GENERADOR DE 4 RECOMENDADOS ALEATORIOS GLOBALES
   const recomendadosAleatorios = useMemo(() => {
     if (!productos || productos.length === 0) return [];
-    
-    // 👉 También ocultamos suscripciones de los recomendados
     const sinSuscripciones = productos.filter(p => !p.categoria || !p.categoria.toLowerCase().includes('suscripci'));
-    
     return sinSuscripciones.sort(() => 0.5 - Math.random()).slice(0, 4);
   }, [productos]);
 
-  // 4. TÍTULO DINÁMICO
   const getTituloPagina = () => {
     if (cepaFormat) return cepaFormat;
     if (subFormat) return subFormat;
@@ -91,10 +104,6 @@ export default function Shop() {
   if (cargando) {
     return (
       <div className="min-h-screen bg-neutral-white flex flex-col">
-        <SEO 
-          title={categoria ? `Comprar ${categoria}` : "Catálogo Completo"} 
-          description="Explora nuestra cava. Vinos de autor, partidas limitadas y selecciones exclusivas listas para llegar a tu copa."
-        />
         <MainNavbar />
         <div className="flex-1 flex items-center justify-center">
           <p className="font-poppins text-brand-orange uppercase tracking-[0.3em] text-[10px] animate-pulse font-black">
@@ -108,7 +117,10 @@ export default function Shop() {
   return (
     <div className="min-h-screen bg-neutral-white overflow-x-hidden">
       <MainNavbar />
-
+<SEO 
+  title={getTituloPagina()} 
+  description="Explora nuestra cava. Vinos de autor, partidas limitadas y selecciones exclusivas listas para llegar a tu copa."
+/>
       <div className="w-full border-b border-dark-blue/10 pt-28 lg:pt-36 flex-shrink-0 relative z-20">
         <div className="max-w-[95rem] mx-auto px-6 lg:px-20 pb-4 flex items-center gap-1.5 text-[10px] font-poppins font-black uppercase tracking-[0.2em] text-dark-blue/40 flex-wrap">
           <Link to="/" className="hover:text-brand-orange transition-colors">Home</Link>
@@ -147,7 +159,7 @@ export default function Shop() {
               {getTituloPagina()}
             </h1>
             <p className="font-poppins text-[10px] uppercase tracking-[0.3em] font-black text-light-blue">
-              Mostrando {productosMostrados.length} productos
+              Mostrando {productosFiltradosTotal.length} etiquetas
             </p>
           </div>
 
@@ -191,11 +203,31 @@ export default function Shop() {
 
           <div className="flex-1 w-full">
             {productosMostrados.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-10 md:gap-x-6 md:gap-y-14">
-                {productosMostrados.map(prod => (
-                  <ProductCard key={prod.id} producto={prod} />
-                ))}
-              </div>
+              <>
+                {/* GRILLA DE PRODUCTOS PAGINADA */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-10 md:gap-x-6 md:gap-y-14">
+                  {productosMostrados.map(prod => (
+                    <ProductCard key={prod.id} producto={prod} />
+                  ))}
+                </div>
+
+                {/* 👉 BOTÓN CARGAR MÁS */}
+                {visibleCount < productosFiltradosTotal.length && (
+                  <div className="mt-16 mb-8 text-center flex justify-center">
+                    <button
+                      onClick={() => setVisibleCount(prev => prev + ITEMS_AL_CARGAR_MAS)}
+                      className="group flex flex-col items-center gap-3 text-dark-blue hover:text-brand-orange transition-colors outline-none"
+                    >
+                      <span className="font-poppins text-[10px] font-black uppercase tracking-widest bg-dark-blue/5 group-hover:bg-brand-orange/10 px-8 py-3 rounded-full transition-colors">
+                        Descorchar más etiquetas
+                      </span>
+                      <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="py-12 md:py-24 text-center flex flex-col items-center w-full">
                 <span className="text-4xl opacity-50 grayscale mb-4">🍷</span>

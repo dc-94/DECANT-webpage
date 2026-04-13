@@ -123,6 +123,18 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-neutral-white overflow-x-hidden">
+      
+      {/* Estilos inyectados para ocultar la barra de scroll y animar la flechita */}
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes swipe-bounce {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(25%); }
+        }
+        .animate-swipe-bounce { animation: swipe-bounce 1.5s infinite ease-in-out; }
+      `}</style>
+
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <SEO title={producto.nombre} description={producto.descripcion || `Adquiere ${producto.nombre} de bodega ${producto.bodega} en Decant.`} image={producto.imageUrl} type="product" />
       <MainNavbar />
@@ -198,21 +210,41 @@ export default function ProductDetail() {
         </section>
       </main>  
 
+      {/* =========================================================
+          CARRUSEL MÓVIL / GRILLA DESKTOP DE PRODUCTOS RELACIONADOS 
+          ========================================================= */}
       {productosRelacionados.length > 0 && (
-        <section className="w-full bg-[#F4F7FA] mt-12 py-24 px-6 lg:px-20 relative z-10">
-          <div className="max-w-[95rem] mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-playfair italic text-dark-blue text-3xl md:text-4xl">Otras joyas de nuestra cava</h2>
-              <Link to={`/shop/${producto.categoria?.toLowerCase()}`} className="hidden md:block font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange hover:text-dark-blue transition-colors">Ver más</Link>
+        <section className="w-full bg-[#F4F7FA] mt-12 py-16 md:py-24 relative z-10 overflow-hidden">
+          <div className="max-w-[95rem] mx-auto px-0 md:px-6 lg:px-20">
+            
+            <div className="flex items-center justify-between mb-4 md:mb-6 px-6 md:px-0">
+              <h2 className="font-playfair italic text-dark-blue text-2xl md:text-4xl">Otras joyas de nuestra cava</h2>
+              <Link to={`/shop/${producto.categoria?.toLowerCase()}`} className="hidden md:block font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange hover:text-dark-blue transition-colors">
+                Ver más
+              </Link>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-24 px-0 lg:px-12 mt-12">
+
+            {/* 👉 Indicador de Swipe animado (Solo Móvil) */}
+            <div className="md:hidden flex items-center justify-end gap-2 text-brand-orange text-[9px] font-black uppercase tracking-widest px-6 mb-4 opacity-80">
+              <span>Deslizá para ver</span>
+              <svg className="w-4 h-4 animate-swipe-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+            </div>
+
+            {/* 👉 Contenedor Híbrido: Flex-Snap (Móvil) / Grid (Desktop) */}
+            <div className="flex overflow-x-auto md:grid md:grid-cols-3 gap-4 md:gap-12 lg:gap-24 px-6 md:px-0 lg:px-12 snap-x snap-mandatory hide-scrollbar pb-8 md:pb-0">
               {productosRelacionados.map(prod => (
-                <ProductCard key={prod.id} producto={prod} />
+                <div key={prod.id} className="flex-none w-[75vw] sm:w-[60vw] md:w-auto md:flex-auto snap-center md:snap-align-none">
+                  <ProductCard producto={prod} />
+                </div>
               ))}
             </div>
-            <div className="mt-12 text-center md:hidden">
-              <Link to={`/shop/${producto.categoria?.toLowerCase()}`} className="font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange">Ver más joyas</Link>
+
+            <div className="mt-8 text-center md:hidden border-t border-dark-blue/5 pt-8 mx-6">
+              <Link to={`/shop/${producto.categoria?.toLowerCase()}`} className="font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange border border-brand-orange px-8 py-3 rounded-sm">
+                Ver todo el catálogo
+              </Link>
             </div>
+
           </div>
         </section>
       )}

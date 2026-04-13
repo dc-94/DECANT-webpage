@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import SEO from '../components/public/SEO';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import Footer from '../components/layout/Footer';
 import { db } from '../config/firebase'; 
 import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { enviarMailBrevo } from '../services/brevoService'; 
-
+<SEO 
+  title="Finalizar Compra" 
+  description="Completa tu compra de forma segura en Decant."
+/>
 // Íconos
 const ChevronIcon = ({ className, isOpen }) => (<svg className={`${className} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>);
 const ArrowLeftIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>);
@@ -16,10 +18,7 @@ export default function CheckoutSuscripcion() {
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // FILTRAMOS SOLO LOS PRODUCTOS DE SUSCRIPCIÓN
   const cartSuscripcion = cart.filter(item => item.label?.toLowerCase() === 'suscripción');
-  
-  // Recalculamos totales solo para la suscripción
   const subtotalSuscripcion = cartSuscripcion.reduce((acc, item) => acc + (item.precioFinal * item.cantidad), 0);
 
   const [activeStep, setActiveStep] = useState(1);
@@ -47,24 +46,22 @@ export default function CheckoutSuscripcion() {
       const emailLower = formData.email.toLowerCase();
       const numeroCliente = Math.floor(1000 + Math.random() * 9000).toString(); 
       
-      // 👉 LÓGICA DINÁMICA: Absorbemos los nombres desde el carrito
       const itemSub = cartSuscripcion[0] || {};
       const nombrePlan = itemSub.nombre || 'Club de Vinos';
-      // Priorizamos la subcategoría (Ej: "Descorche", "Terruño"), si no existe, usamos el nombre
       const badgeSocio = itemSub.subcategoria || itemSub.nombre || 'Socio VIP';
       
-      // 1. Guardar Cliente en Firebase
+      // 1. Guardar Cliente
       await setDoc(doc(db, 'clientes', emailLower), {
         nombre: formData.nombre, 
         apellido: formData.apellido,
         email: emailLower, 
         telefono: formData.telefono,
         numeroCliente: numeroCliente, 
-        badge: badgeSocio, // 👈 Se guarda el nombre exacto de tu producto
+        badge: badgeSocio, 
         createdAt: serverTimestamp()
       }, { merge: true });
 
-      // 2. Registrar el Pedido
+      // 2. Crear Pedido
       const pedidoInfo = {
         clienteEmail: emailLower,
         numeroCliente: numeroCliente,
@@ -82,26 +79,27 @@ export default function CheckoutSuscripcion() {
       };
 
       const pedidoRef = await addDoc(collection(db, 'pedidos'), pedidoInfo);
-      
-      // 3. Sincronización de N° de Orden
       const pedidoIdReal = pedidoRef.id;
       const numeroOrdenCorto = pedidoIdReal.slice(0, 5).toUpperCase();
 
-      // 4. Disparo automático a Brevo
-      enviarMailBrevo({
-        toEmail: emailLower,
-        toName: `${formData.nombre} ${formData.apellido}`,
-        templateId: 2,
-        params: {
-          nombre: formData.nombre,
-          plan: nombrePlan,
-          pin: numeroCliente,
-          orden: numeroOrdenCorto,
-          link_tracking: `${import.meta.env.VITE_BASE_URL}/pedido/${pedidoIdReal}`
-        }
+      // 👉 3. LA MAGIA: Disparo al Backend Seguro usando tu Template
+      fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: emailLower,
+          toName: `${formData.nombre} ${formData.apellido}`,
+          templateId: 2, // 👈 Template Brevo
+          params: {
+            nombre: formData.nombre,
+            plan: nombrePlan,
+            pin: numeroCliente,
+            orden: numeroOrdenCorto,
+            link_tracking: `${import.meta.env.VITE_BASE_URL}/pedido/${pedidoIdReal}`
+          }
+        })
       }).catch(err => console.error("Error enviando bienvenida:", err));
 
-      // 5. Guardamos en LocalStorage
       const pedidoConfirmadoStorage = { 
         ...pedidoInfo,
         id: pedidoIdReal,
@@ -128,17 +126,18 @@ export default function CheckoutSuscripcion() {
     );
   }
 
-  // Lógica de Inputs VIP
   const inputClases = "w-full bg-dark-blue/40 backdrop-blur-sm border-b border-light-blue/20 px-4 py-4 text-sm outline-none focus:border-brand-orange text-brand-white placeholder-brand-white/30 transition-all focus:bg-dark-blue/60";
 
   return (
+    
     <div className="min-h-screen bg-extra-black text-brand-white font-poppins selection:bg-brand-orange selection:text-white flex flex-col relative overflow-hidden">
-      
-      {/* LUCES VIP DE FONDO (Orbes) */}
+    <SEO 
+      title="Finalizar Compra" 
+      description="Completa tu compra de forma segura en Decant."
+    />  
       <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-brand-orange/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[30rem] h-[30rem] bg-light-blue/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
-      {/* RESUMEN MÓVIL */}
       <div className="md:hidden bg-extra-black/80 backdrop-blur-md border-b border-brand-orange/20 shrink-0 relative z-10">
         <button onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)} className="w-full flex items-center justify-between p-6 text-sm font-black uppercase tracking-widest text-brand-orange outline-none">
           <span className="flex items-center gap-2">🍷 Club VIP <ChevronIcon className="w-4 h-4" isOpen={mobileSummaryOpen} /></span>
@@ -162,9 +161,6 @@ export default function CheckoutSuscripcion() {
 
       <div className="max-w-[85rem] w-full mx-auto grid grid-cols-1 md:grid-cols-[1.3fr_1fr] flex-1 relative z-10">
         
-        {/* =======================================
-            FORMULARIO IZQUIERDA
-            ======================================= */}
         <div className="p-6 md:p-12 lg:p-16 flex flex-col">
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-brand-white/50 hover:text-brand-orange transition-colors w-max mb-10 outline-none group">
             <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -173,7 +169,6 @@ export default function CheckoutSuscripcion() {
           
           <form onSubmit={handleCheckout} className="flex flex-col gap-8">
             
-            {/* PASO 1: DATOS Y DIRECCIÓN */}
             <div className={`bg-dark-blue/20 backdrop-blur-sm p-6 md:p-10 transition-all duration-500 rounded-sm ${activeStep === 1 ? 'border border-brand-orange/50 shadow-[0_0_30px_rgba(217,119,87,0.1)]' : 'border border-light-blue/10 opacity-60'}`}>
               <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(1)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-brand-orange">1. Datos Personales y Domicilio</h2>
@@ -202,7 +197,6 @@ export default function CheckoutSuscripcion() {
               </div>
             </div>
 
-           {/* PASO 2: MODALIDAD DE ENTREGA */}
             <div className={`bg-dark-blue/20 backdrop-blur-sm p-6 md:p-10 transition-all duration-500 rounded-sm ${activeStep === 2 ? 'border border-brand-orange/50 shadow-[0_0_30px_rgba(217,119,87,0.1)]' : 'border border-light-blue/10 opacity-60'}`}>
               <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(2)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-brand-orange">2. Modalidad de Entrega</h2>
@@ -211,7 +205,6 @@ export default function CheckoutSuscripcion() {
               <div className={`overflow-hidden transition-all duration-500 ${activeStep === 2 ? 'max-h-[800px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
                 
                 <div className="flex flex-col gap-4">
-                  {/* OPCIÓN 1: ROSARIO */}
                   <label className={`border p-6 flex items-center gap-4 cursor-pointer transition-all rounded-sm ${formData.envio === 'rosario' ? 'border-brand-orange bg-brand-orange/10' : 'bg-dark-blue/40 border-light-blue/20 hover:border-brand-orange/50'}`}>
                     <input type="radio" name="envio" value="rosario" checked={formData.envio === 'rosario'} onChange={handleInputChange} className="accent-brand-orange w-5 h-5" />
                     <div className="flex flex-col">
@@ -220,7 +213,6 @@ export default function CheckoutSuscripcion() {
                     </div>
                   </label>
 
-                  {/* OPCIÓN 2: RETIRO */}
                   <label className={`border p-6 flex items-center gap-4 cursor-pointer transition-all rounded-sm ${formData.envio === 'retiro' ? 'border-brand-orange bg-brand-orange/10' : 'bg-dark-blue/40 border-light-blue/20 hover:border-brand-orange/50'}`}>
                     <input type="radio" name="envio" value="retiro" checked={formData.envio === 'retiro'} onChange={handleInputChange} className="accent-brand-orange w-5 h-5" />
                     <div className="flex flex-col">
@@ -230,7 +222,6 @@ export default function CheckoutSuscripcion() {
                     <span className="ml-auto text-xs text-brand-orange font-bold">Gratis</span>
                   </label>
 
-                  {/* OPCIÓN 3: RESTO DEL PAÍS */}
                   <label className={`border p-6 flex items-center gap-4 cursor-pointer transition-all rounded-sm ${formData.envio === 'resto' ? 'border-brand-orange bg-brand-orange/10' : 'bg-dark-blue/40 border-light-blue/20 hover:border-brand-orange/50'}`}>
                     <input type="radio" name="envio" value="resto" checked={formData.envio === 'resto'} onChange={handleInputChange} className="accent-brand-orange w-5 h-5" />
                     <div className="flex flex-col">
@@ -245,7 +236,6 @@ export default function CheckoutSuscripcion() {
               </div>
             </div>
 
-            {/* PASO 3: CONFIRMACIÓN */}
             <div className={`bg-dark-blue/20 backdrop-blur-sm p-6 md:p-10 transition-all duration-500 rounded-sm ${activeStep === 3 ? 'border border-brand-orange/50 shadow-[0_0_30px_rgba(217,119,87,0.1)]' : 'border border-light-blue/10 opacity-60'}`}>
                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(3)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-brand-orange">3. Confirmar Ingreso</h2>
@@ -268,9 +258,6 @@ export default function CheckoutSuscripcion() {
           </form>
         </div>
 
-        {/* =======================================
-            RESUMEN DERECHA
-            ======================================= */}
         <div className="hidden md:block bg-extra-black/40 backdrop-blur-md border-l border-light-blue/10">
           <div className="sticky top-0 h-screen flex flex-col">
             <div className="p-10 border-b border-light-blue/10 shrink-0">
@@ -296,7 +283,6 @@ export default function CheckoutSuscripcion() {
                 ))}
               </div>
 
-              {/* TOTALES */}
               <div className="mt-8 pt-8 border-t border-light-blue/20 flex flex-col gap-4">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-brand-white/60 uppercase tracking-widest">Subtotal</span>

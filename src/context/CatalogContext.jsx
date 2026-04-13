@@ -37,7 +37,7 @@ export function CatalogProvider({ children }) {
     });
 
     // =========================================================
-    // 2. ESCUCHAMOS EL ÁRBOL DE TAXONOMÍA (EL NUEVO MENÚ OFICIAL)
+    // 2. ESCUCHAMOS MENÚ OFICIAL)
     // =========================================================
     const unsubscribeMenu = onSnapshot(collection(db, "categorias_menu"), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
