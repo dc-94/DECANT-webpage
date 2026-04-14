@@ -1,8 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { useCatalog } from '../context/CatalogContext';
 import AdminNavbar from '../components/layout/AdminNavbar';
+
+// IMPORTACIONES DE DRAWERS (Asegúrate de que los archivos existan)
+import DrawerNuevaVenta from '../components/admin/DrawerNuevaVenta';
+import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta';
 
 export default function AdminVentas() {
   const { productos } = useCatalog();
@@ -17,47 +22,61 @@ export default function AdminVentas() {
 
   useEffect(() => {
     const q = query(collection(db, 'pedidos'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snap) => {
-      setPedidos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPedidos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
+    }, (error) => {
+      console.error("Error en snapshot pedidos:", error);
     });
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
 
   const filtered = useMemo(() => 
-    pedidos.filter(p => p.clienteEmail?.toLowerCase().includes(busqueda.toLowerCase())), 
-  [pedidos, busqueda]);
-
-  const abrirDetalle = (p) => {
-    setPedidoSeleccionado(p);
-    setIsDetalleOpen(true);
-  };
+    pedidos.filter(p => 
+      (p.clienteEmail?.toLowerCase() || '').includes(busqueda.toLowerCase()) ||
+      (p.id.toLowerCase().includes(busqueda.toLowerCase()))
+    ), [pedidos, busqueda]
+  );
 
   return (
     <div className="min-h-screen bg-[#F4F7FA] font-poppins text-slate-900 flex flex-col">
       <AdminNavbar />
+      
       <main className="flex-1 max-w-[95rem] w-full mx-auto pt-8 px-6 pb-20">
         
-        <header className="flex justify-between items-end border-b border-slate-200 pb-6 mb-8">
-          <div>
-            <h1 className="text-3xl font-black uppercase tracking-tight">Ventas</h1>
-            <p className="text-xs text-slate-400 font-medium">Control de órdenes Web y Offline</p>
+        {/* BOTÓN VOLVER Y HEADER */}
+        <div className="mb-10">
+          <Link to="/locked_cellar" className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-brand-orange mb-6 outline-none">
+            ← Volver al Panel
+          </Link>
+          
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-slate-200 pb-6">
+            <div>
+              <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Ventas</h1>
+              <p className="text-xs font-medium text-slate-400 mt-1">Órdenes Web y Ventas OFFLINE (Manuales).</p>
+            </div>
+            
+            <button 
+              onClick={() => setIsNuevaVentaOpen(true)}
+              className="bg-white border-2 border-slate-900 px-6 py-3.5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-md"
+            >
+              + Nueva Venta Offline
+            </button>
           </div>
-          <button 
-            onClick={() => setIsNuevaVentaOpen(true)} 
-            className="bg-white border-2 border-slate-900 px-6 py-3 font-black text-[10px] uppercase hover:bg-slate-900 hover:text-white transition-all shadow-md"
-          >
-            Nueva Venta Offline
-          </button>
-        </header>
+        </div>
 
-        <input 
-          type="text" 
-          placeholder="Buscar por cliente..." 
-          className="w-full md:w-96 p-4 bg-white border border-slate-200 rounded-xl mb-8 outline-none focus:border-brand-orange shadow-sm"
-          onChange={(e) => setBusqueda(e.target.value)} 
-        />
+        {/* BUSCADOR */}
+        <div className="mb-6">
+          <input 
+            type="text" 
+            placeholder="Buscar por cliente o ID..." 
+            className="w-full md:w-96 p-4 bg-white border border-slate-200 rounded-xl outline-none focus:border-brand-orange shadow-sm"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
 
+        {/* TABLA */}
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <table className="w-full text-left">
             <thead>
@@ -71,26 +90,47 @@ export default function AdminVentas() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan="5" className="p-20 text-center text-xs font-bold uppercase animate-pulse">Sincronizando...</td></tr>
-              ) : filtered.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="p-6 font-black text-sm">#{p.id.slice(0,5).toUpperCase()}</td>
-                  <td className="p-6">
-                    <span className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${p.tipo === 'OFFLINE' ? 'bg-slate-100 text-slate-500' : 'bg-orange-50 text-brand-orange border-brand-orange/20'}`}>
-                      {p.tipo || 'WEB'}
-                    </span>
-                  </td>
-                  <td className="p-6 text-xs font-medium">{p.clienteEmail}</td>
-                  <td className="p-6 font-black text-sm">${p.totalFinal?.toLocaleString()}</td>
-                  <td className="p-6 text-right">
-                    <button onClick={() => abrirDetalle(p)} className="text-brand-orange font-black text-[10px] uppercase hover:underline">Detalle →</button>
-                  </td>
-                </tr>
-              ))}
+                <tr><td colSpan="5" className="p-20 text-center text-xs font-bold uppercase animate-pulse">Cargando ventas...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan="5" className="p-20 text-center text-xs font-bold uppercase">Sin registros</td></tr>
+              ) : (
+                filtered.map(p => (
+                  <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="p-6 font-black text-sm">#{p.id.slice(0,5).toUpperCase()}</td>
+                    <td className="p-6">
+                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${p.tipo === 'OFFLINE' ? 'bg-slate-100 text-slate-500' : 'bg-orange-50 text-brand-orange border-brand-orange/20'}`}>
+                        {p.tipo || 'WEB'}
+                      </span>
+                    </td>
+                    <td className="p-6 text-xs font-medium">{p.clienteEmail}</td>
+                    <td className="p-6 font-black text-sm">${p.totalFinal?.toLocaleString()}</td>
+                    <td className="p-6 text-right">
+                      <button 
+                        onClick={() => { setPedidoSeleccionado(p); setIsDetalleOpen(true); }}
+                        className="text-brand-orange font-black text-[10px] uppercase hover:underline"
+                      >
+                        Detalle →
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
+        {/* DRAWERS */}
+        <DrawerNuevaVenta 
+          isOpen={isNuevaVentaOpen} 
+          onClose={() => setIsNuevaVentaOpen(false)} 
+          productos={productos} 
+        />
+
+        <DrawerDetalleVenta 
+          isOpen={isDetalleOpen} 
+          onClose={() => setIsDetalleOpen(false)} 
+          pedido={pedidoSeleccionado} 
+        />
       </main>
     </div>
   );

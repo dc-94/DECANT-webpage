@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useCatalog } from '../context/CatalogContext';
 import SEO from '../components/public/SEO';
@@ -18,7 +18,6 @@ export default function Shop() {
   const [orden, setOrden] = useState('recientes');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   
-  // 👉 ESTADO DE PAGINACIÓN VISUAL
   const [visibleCount, setVisibleCount] = useState(ITEMS_POR_PAGINA);
   
   const [filtros, setFiltros] = useState({
@@ -76,14 +75,12 @@ export default function Shop() {
     return filtrados;
   }, [productosContextoURL, filtros, orden]);
 
-  // 👉 3. CORTE VISUAL: Solo tomamos la cantidad "visibleCount" para renderizar
-  const productosMostrados = useMemo(() => {
+   const productosMostrados = useMemo(() => {
     return productosFiltradosTotal.slice(0, visibleCount);
   }, [productosFiltradosTotal, visibleCount]);
 
-  // Si el usuario cambia de categoría o filtro, reseteamos la paginación a 40
-  useMemo(() => {
-    setVisibleCount(ITEMS_POR_PAGINA);
+  useEffect(() => {
+    setVisibleCount(40);
   }, [categoria, subcategoria, cepa, filtros, orden]);
 
   // 4. GENERADOR DE 4 RECOMENDADOS ALEATORIOS GLOBALES

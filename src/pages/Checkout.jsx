@@ -3,7 +3,7 @@ import SEO from '../components/public/SEO';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { db } from '../config/firebase';
-// 👉 Importamos las herramientas de lote (batch) e incremento
+
 import { 
   doc, 
   getDoc, 
@@ -179,7 +179,7 @@ export default function Checkout() {
       // Agregamos la creación del pedido al Batch
       batch.set(newOrderRef, pedidoInfo);
 
-      // 3. ACTUALIZACIÓN DE STOCK (Iteramos el carrito)
+      // 3. ACTUALIZACIÓN DE STOCK 
       cart.forEach((item) => {
         const productRef = doc(db, 'productos', item.id);
         // Restamos la cantidad del stock actual en Firebase
@@ -188,7 +188,6 @@ export default function Checkout() {
         });
       });
 
-      // 👉 EJECUCIÓN FINAL DEL LOTE (Todo o nada)
       await batch.commit();
 
       // 4. ENVÍO DE EMAIL (Cloud Function)
@@ -211,9 +210,16 @@ export default function Checkout() {
       localStorage.setItem('decant_customer_data', JSON.stringify({
           nombre: formData.nombre, apellido: formData.apellido, email: formData.email, telefono: formData.telefono
       }));
-      
-      clearCart();
-      navigate('/gracias');
+      localStorage.setItem('decant_last_order', JSON.stringify({
+          id: pedidoIdReal,
+          ordenDisplay: numeroOrdenCorto,
+          formData: formData,
+          totalFinal: totalFinal,
+          clienteEmail: emailLower
+        }));
+
+        clearCart();
+        navigate('/gracias');
 
     } catch (error) {
       console.error("Error en el Checkout Batch:", error);

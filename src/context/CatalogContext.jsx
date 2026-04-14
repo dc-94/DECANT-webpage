@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { db } from "../config/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { getDocs, collection, query, orderBy } from 'firebase/firestore';
 
 const CatalogContext = createContext();
 
@@ -15,72 +15,25 @@ export function CatalogProvider({ children }) {
   const [menuTree, setMenuTree] = useState({});
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    let isProductosLoaded = false;
-    let isMenuLoaded = false;
+useEffect(() => {
+  const fetchProductos = async () => {
+    try {
+      const q = query(collection(db, 'productos'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q); // Cambiamos onSnapshot por getDocs
+      const docs = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setProductos(docs);
+    } catch (error) {
+      console.error("Error cargando catálogo:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // =========================================================
-    // 1. ESCUCHAMOS EL CATÁLOGO DE PRODUCTOS
-    // =========================================================
-    const qProductos = query(collection(db, "productos"), orderBy("createdAt", "desc"));
-    const unsubscribeProductos = onSnapshot(qProductos, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Filtramos los productos que se pueden mostrar en la web
-      const productosWeb = docs.filter(p => p.mostrarEnWeb !== false);
-      setProductos(productosWeb);
-      
-      isProductosLoaded = true;
-      if (isProductosLoaded && isMenuLoaded) setCargando(false);
-    }, (error) => {
-      console.error("Error cargando productos:", error);
-    });
-
-    // =========================================================
-    // 2. ESCUCHAMOS MENÚ OFICIAL)
-    // =========================================================
-    const unsubscribeMenu = onSnapshot(collection(db, "categorias_menu"), (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      const formattedTree = {};
-      
-      docs.forEach(cat => {
-        // Solo incluimos la categoría si su switch de 'visible' es true
-        if (cat.visible !== false) { 
-          const catName = cat.nombre || "Sin Nombre";
-          formattedTree[catName] = {};
-          
-          if (cat.subcategorias && Array.isArray(cat.subcategorias)) {
-            cat.subcategorias.forEach(sub => {
-              // Solo incluimos la subcategoría si es visible
-              if (sub.visible !== false) {
-                const subName = sub.nombre || "General";
-                
-                // Extraemos las cepas y filtramos solo las visibles
-                const cepas = sub.cepas 
-                  ? sub.cepas.filter(c => c.visible !== false).map(c => c.nombre)
-                  : [];
-                
-                formattedTree[catName][subName] = cepas;
-              }
-            });
-          }
-        }
-      });
-
-      setMenuTree(formattedTree);
-      
-      isMenuLoaded = true;
-      if (isProductosLoaded && isMenuLoaded) setCargando(false);
-    }, (error) => {
-      console.error("Error cargando el menú:", error);
-    });
-
-    return () => {
-      unsubscribeProductos();
-      unsubscribeMenu();
-    };
-  }, []);
+  fetchProductos();
+}, []);
 
   return (
     <CatalogContext.Provider value={{ productos, menuTree, cargando }}>

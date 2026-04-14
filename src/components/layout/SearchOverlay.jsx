@@ -24,7 +24,24 @@ const getBlobClass = (sub) => {
 export default function SearchOverlay({ isOpen, onClose }) {
   const { productos } = useCatalog();
   const [query, setQuery] = useState('');
+  
+  // 👉 AGREGADO: Estado para la búsqueda con retraso (Debounce)
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  
   const inputRef = useRef(null);
+
+  // 👉 AGREGADO: Lógica de Debounce
+  useEffect(() => {
+    // Configuramos un temporizador de 300ms
+    const timerId = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 500);
+
+    // Cleanup: Si el usuario teclea de nuevo antes de los 300ms, limpiamos el temporizador anterior
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [query]); // Este efecto se ejecuta cada vez que el usuario teclea
 
   useEffect(() => {
     if (isOpen) {
@@ -32,6 +49,7 @@ export default function SearchOverlay({ isOpen, onClose }) {
       document.body.style.overflow = 'hidden'; 
     } else {
       setQuery('');
+      setDebouncedQuery(''); // 👉 Limpiamos ambos estados al cerrar
       document.body.style.overflow = 'unset';
     }
 
@@ -45,7 +63,8 @@ export default function SearchOverlay({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const busquedaNormalizada = query.toLowerCase().trim();
+  // 👉 AGREGADO: Ahora filtramos usando 'debouncedQuery' en lugar de 'query'
+  const busquedaNormalizada = debouncedQuery.toLowerCase().trim();
   const resultados = busquedaNormalizada.length > 1 
     ? productos.filter(p => 
         p.nombre?.toLowerCase().includes(busquedaNormalizada) ||
@@ -96,9 +115,10 @@ export default function SearchOverlay({ isOpen, onClose }) {
         {/* RESULTADOS */}
         <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar" onClick={onClose}>
           
-          {query.length > 1 && resultados.length === 0 && (
+          {/* 👉 AGREGADO: Verificamos 'debouncedQuery' para el mensaje de "No encontrado" */}
+          {debouncedQuery.length > 1 && resultados.length === 0 && (
             <div className="text-dark-blue/60 text-xs uppercase tracking-widest font-light text-center mt-12">
-              No encontramos resultados para "<span className="text-extra-black font-bold">{query}</span>"
+              No encontramos resultados para "<span className="text-extra-black font-bold">{debouncedQuery}</span>"
             </div>
           )}
 

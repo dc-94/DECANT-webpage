@@ -2,14 +2,32 @@ const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 
 exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) => {
-  // 1. CORS: Permite la conexión desde tu web sin bloqueos
-  res.set("Access-Control-Allow-Origin", "*");
-  if (req.method === "OPTIONS") {
-    res.set("Access-Control-Allow-Methods", "POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "3600");
-    return res.status(204).send("");
+ 
+  const ALLOWED_ORIGINS = [
+    'http://localhost:5173',      
+    'https://decant.online'           
+  ];
+
+  // 👇 =======================================================
+  // 👇 INICIO DEL CÓDIGO INYECTADO (SEGURIDAD CORS)
+  // ==========================================================
+  const origin = req.headers.origin;
+  
+  // 1. Verificamos si el que llama a la función está en la lista VIP
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
   }
+
+  // 2. Manejo de la petición "Pre-flight" (Requisito estricto de los navegadores)
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+    return res.status(204).send('');
+  }
+  // 👆 =======================================================
+  // 👆 FIN DEL CÓDIGO INYECTADO
+  // ==========================================================
 
   try {
     const { toEmail, toName, templateId, params } = req.body;
