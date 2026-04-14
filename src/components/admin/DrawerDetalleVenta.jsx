@@ -248,9 +248,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[11px] font-bold leading-tight">{item.nombre}</span>
-                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-0.5">
-                        Unidad: ${(item.precioFinal || item.precio).toLocaleString()}
-                      </span>
+                      <span className="font-black text-sm text-slate-900">                    ${(((item.precioFinal || item.precio || item.precioUnitario) || 0) * item.cantidad).toLocaleString()}
+                      </span> 
                     </div>
                   </div>
                   <span className="font-black text-xs text-slate-900 shrink-0">
