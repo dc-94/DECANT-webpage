@@ -5,7 +5,6 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, addDoc } from 'firebase
 import AdminNavbar from '../components/layout/AdminNavbar';
 
 export default function AdminAjustes() {
-  const [activeTab, setActiveTab] = useState('menu'); // 'menu' o 'proveedores'
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -15,29 +14,18 @@ export default function AdminAjustes() {
   const [catActiva, setCatActiva] = useState(null);
   const [subCatExpandida, setSubCatExpandida] = useState(null);
 
-  // --- ESTADOS PROVEEDORES ---
-  const [proveedores, setProveedores] = useState([]);
-  const [modalProvAbierto, setModalProvAbierto] = useState(false);
-  const [provActivo, setProvActivo] = useState(null);
-
   // 1. ESCUCHAR FIREBASE (TIEMPO REAL)
   useEffect(() => {
-    // Escuchar Categorías
     const unsubCat = onSnapshot(collection(db, 'categorias_menu'), (snapshot) => {
       setCategorias(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // Escuchar Proveedores
-    const unsubProv = onSnapshot(collection(db, 'proveedores'), (snapshot) => {
-      setProveedores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
 
-    return () => { unsubCat(); unsubProv(); };
+    return () => unsubCat(); 
   }, []);
 
   // =========================================================
-  // 2. LÓGICA DE CATEGORÍAS (TU LÓGICA ORIGINAL)
+  // 2. LÓGICA DE CATEGORÍAS 
   // =========================================================
   const abrirModalCat = (categoria) => {
     if (categoria) {
@@ -124,34 +112,6 @@ export default function AdminAjustes() {
     }
   };
 
-  // =========================================================
-  // 3. LÓGICA DE PROVEEDORES
-  // =========================================================
-  const abrirModalProv = (prov) => {
-    setProvActivo(prov ? JSON.parse(JSON.stringify(prov)) : {
-      nombre: '', razonSocial: '', cuit: '', direccion: '', telefono: '', vendedor: '', plazoPago: ''
-    });
-    setModalProvAbierto(true);
-  };
-
-  const guardarProveedor = async () => {
-    if (!provActivo.nombre.trim()) return alert("El nombre es obligatorio");
-    setIsSaving(true);
-    try {
-      if (provActivo.id) await setDoc(doc(db, 'proveedores', provActivo.id), provActivo);
-      else await addDoc(collection(db, 'proveedores'), provActivo);
-      setModalProvAbierto(false);
-    } catch (e) { console.error(e); }
-    setIsSaving(false);
-  };
-
-  const eliminarProveedor = async (id) => {
-    if (window.confirm("¿Estás seguro de eliminar este proveedor?")) {
-      await deleteDoc(doc(db, 'proveedores', id));
-      setModalProvAbierto(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#F4F7FA] font-poppins text-slate-900 flex flex-col relative">
       <AdminNavbar />
@@ -165,34 +125,25 @@ export default function AdminAjustes() {
           
           <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-slate-200 pb-6">
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Configuración</h1>
-              <div className="flex gap-8 mt-6">
-                <button 
-                  onClick={() => setActiveTab('menu')}
-                  className={`pb-3 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'menu' ? 'border-b-2 border-brand-orange text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  Categorías y Menú
-                </button>
-                <button 
-                  onClick={() => setActiveTab('proveedores')}
-                  className={`pb-3 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'proveedores' ? 'border-b-2 border-brand-orange text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  Proveedores
-                </button>
-              </div>
+              <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Taxonomía y Menú</h1>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-2">
+                Gestión de categorías, subcategorías y cepas
+              </p>
             </div>
             
             <button 
-              onClick={() => activeTab === 'menu' ? abrirModalCat(null) : abrirModalProv(null)}
+              onClick={() => abrirModalCat(null)}
               className="bg-slate-900 text-white px-8 py-4 rounded-sm font-black text-[10px] uppercase tracking-widest hover:bg-brand-orange transition-all shadow-lg shadow-slate-900/10"
             >
-              + {activeTab === 'menu' ? 'Nueva Categoría' : 'Nuevo Proveedor'}
+              + Nueva Categoría
             </button>
           </div>
         </div>
 
         {/* --- CONTENIDO DE CATEGORÍAS --- */}
-        {activeTab === 'menu' && (
+        {loading ? (
+           <div className="py-20 text-center text-brand-orange text-xs font-black uppercase tracking-widest animate-pulse">Cargando árbol del menú...</div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categorias.map(cat => (
               <div key={cat.id} className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm flex flex-col justify-between hover:border-brand-orange/30 transition-colors">
@@ -210,42 +161,6 @@ export default function AdminAjustes() {
           </div>
         )}
 
-        {/* --- CONTENIDO DE PROVEEDORES --- */}
-        {activeTab === 'proveedores' && (
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Nombre / Plazo</th>
-                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Razón Social / CUIT</th>
-                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Contacto</th>
-                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {proveedores.map(prov => (
-                  <tr key={prov.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-6">
-                      <p className="font-black text-slate-900 text-sm">{prov.nombre}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Plazo: {prov.plazoPago || 'N/A'}</p>
-                    </td>
-                    <td className="p-6 text-xs text-slate-600">
-                      <p className="font-bold">{prov.razonSocial}</p>
-                      <p className="opacity-60">{prov.cuit}</p>
-                    </td>
-                    <td className="p-6 text-xs text-slate-600">
-                      <p className="font-bold">{prov.vendedor}</p>
-                      <p className="opacity-60">{prov.telefono}</p>
-                    </td>
-                    <td className="p-6 text-right">
-                      <button onClick={() => abrirModalProv(prov)} className="text-brand-orange font-black text-[10px] uppercase tracking-widest hover:underline">Ver Ficha →</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </main>
 
       {/* MODAL CATEGORÍAS (COMPLETO) */}
@@ -307,39 +222,6 @@ export default function AdminAjustes() {
         </div>
       )}
 
-      {/* MODAL PROVEEDORES (COMPLETO) */}
-      {modalProvAbierto && provActivo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModalProvAbierto(false)}></div>
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl relative z-10 overflow-hidden flex flex-col">
-            <header className="p-8 border-b bg-slate-50 flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900">Ficha de Proveedor</h2>
-                <p className="text-[10px] font-black text-brand-orange uppercase tracking-widest mt-1">Gestión administrativa</p>
-              </div>
-              <button onClick={() => setModalProvAbierto(false)} className="text-3xl text-slate-300 hover:text-slate-900">×</button>
-            </header>
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Nombre Comercial *</label>
-                  <input type="text" value={provActivo.nombre} onChange={(e) => setProvActivo({...provActivo, nombre: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-orange font-bold text-sm" />
-                </div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Razón Social</label><input type="text" value={provActivo.razonSocial} onChange={(e) => setProvActivo({...provActivo, razonSocial: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold" /></div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">CUIT</label><input type="text" value={provActivo.cuit} onChange={(e) => setProvActivo({...provActivo, cuit: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold" /></div>
-                <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Dirección Comercial</label><input type="text" value={provActivo.direccion} onChange={(e) => setProvActivo({...provActivo, direccion: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold" /></div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Vendedor / Contacto</label><input type="text" value={provActivo.vendedor} onChange={(e) => setProvActivo({...provActivo, vendedor: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold" /></div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Teléfono</label><input type="text" value={provActivo.telefono} onChange={(e) => setProvActivo({...provActivo, telefono: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold" /></div>
-                <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Plazo de Pago</label><input type="text" value={provActivo.plazoPago} onChange={(e) => setProvActivo({...provActivo, plazoPago: e.target.value})} placeholder="Ej: 30 días FF" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold" /></div>
-              </div>
-            </div>
-            <footer className="p-8 border-t bg-white flex justify-between items-center">
-              <button onClick={() => eliminarProveedor(provActivo.id)} className="text-[10px] font-black uppercase text-red-500 hover:underline">Eliminar Proveedor</button>
-              <div className="flex gap-4"><button onClick={() => setModalProvAbierto(false)} className="text-[10px] font-black uppercase text-slate-400">Cancelar</button><button onClick={guardarProveedor} disabled={isSaving} className="bg-slate-900 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-brand-orange transition-all">{isSaving ? 'Guardando...' : 'Guardar Proveedor'}</button></div>
-            </footer>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

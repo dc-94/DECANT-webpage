@@ -1,25 +1,18 @@
 import { useState, useEffect } from 'react';
-import { db } from '../../config/firebase'; // Ruta corregida
-import { collection, onSnapshot, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../config/firebase'; 
+import { collection, onSnapshot, writeBatch, doc, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export default function DrawerFactura({ isOpen, onClose, productos }) {
   const [cargando, setCargando] = useState(false);
   const [mostrarResumen, setMostrarResumen] = useState(false);
-  
-  // 👉 Estado para proveedores reales de la DB
   const [listaProveedores, setListaProveedores] = useState([]);
   
   const [cabecera, setCabecera] = useState({
-    proveedor: '',
-    nroFactura: '',
-    fecha: new Date().toISOString().split('T')[0]
+    proveedor: '', nroFactura: '', fecha: new Date().toISOString().split('T')[0]
   });
 
-  const [items, setItems] = useState([
-    { id: '', nombre: '', cantidad: 1, valor: 0, descuento: 0, busqueda: '' }
-  ]);
+  const [items, setItems] = useState([{ id: '', nombre: '', cantidad: 1, valor: 0, descuento: 0, busqueda: '' }]);
 
-  // 1. Escuchar proveedores de Firebase
   useEffect(() => {
     if (!isOpen) return;
     const unsubscribe = onSnapshot(collection(db, 'proveedores'), (snapshot) => {
@@ -28,14 +21,8 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
     return () => unsubscribe();
   }, [isOpen]);
 
-  const agregarFila = () => {
-    setItems([...items, { id: '', nombre: '', cantidad: 1, valor: 0, descuento: 0, busqueda: '' }]);
-  };
-
-  const eliminarFila = (index) => {
-    setItems(items.filter((_, i) => i !== index));
-  };
-
+  const agregarFila = () => setItems([...items, { id: '', nombre: '', cantidad: 1, valor: 0, descuento: 0, busqueda: '' }]);
+  const eliminarFila = (index) => setItems(items.filter((_, i) => i !== index));
   const actualizarItem = (index, campo, valor) => {
     const nuevosItems = [...items];
     nuevosItems[index][campo] = valor;
@@ -51,7 +38,13 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
     setItems(nuevosItems);
   };
 
-  const calcularValorFinalUnitario = (item) => item.valor - item.descuento;
+  // Descuento como PORCENTAJE (Ej: 20%)
+  const calcularValorFinalUnitario = (item) => {
+    const valorBase = item.valor || 0;
+    const porcentajeDesc = item.descuento || 0;
+    return valorBase * (1 - (porcentajeDesc / 100)); 
+  };
+
   const calcularTotalLinea = (item) => item.cantidad * calcularValorFinalUnitario(item);
   const totalFactura = items.reduce((acc, item) => acc + calcularTotalLinea(item), 0);
 
@@ -74,17 +67,37 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
         createdAt: serverTimestamp()
       });
 
-      items.forEach(item => {
-        if (!item.id) return;
+      // Usamos un loop tradicional en lugar de forEach porque necesitamos hacer "await getDoc"
+      for (const item of items) {
+        if (!item.id) continue;
+        
         const pRef = doc(db, 'productos', item.id);
-        batch.update(pRef, {
-          stock: increment(item.cantidad),
-          costo: calcularValorFinalUnitario(item)
-        });
-      });
+        const pSnap = await getDoc(pRef);
+        
+        if (pSnap.exists()) {
+          const prodData = pSnap.data();
+          const nuevoCosto = calcularValorFinalUnitario(item);
+          
+          // 👉 LÓGICA DE AUTO-PRICING CON EL MARGEN EXACTO DEL PRODUCTO
+          const gananciaGuardada = parseFloat(prodData.ganancia) || 0; // Ej: 50
+          const descVenta = parseFloat(prodData.descuentoPorcentaje) || 0; // Si el producto está en oferta
+
+          // 1. Calculamos el nuevo Precio Base (Costo + % Ganancia)
+          const nuevoPrecioBase = nuevoCosto * (1 + (gananciaGuardada / 100));
+          // 2. Aplicamos el descuento de venta al público (si existe) para el Precio Final
+          const nuevoPrecioFinal = nuevoPrecioBase * (1 - (descVenta / 100));
+
+          batch.update(pRef, {
+            stock: increment(item.cantidad),
+            costo: nuevoCosto,
+            precioBase: nuevoPrecioBase,
+            precioFinal: nuevoPrecioFinal
+          });
+        }
+      }
 
       await batch.commit();
-      alert("Factura cargada y stock actualizado.");
+      alert("Factura cargada. Stock, Costos y Precios actualizados con éxito.");
       onClose();
       setItems([{ id: '', nombre: '', cantidad: 1, valor: 0, descuento: 0, busqueda: '' }]);
       setMostrarResumen(false);
@@ -111,15 +124,10 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-          {/* CABECERA */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
             <div>
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Proveedor</label>
-              <select 
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-orange font-bold"
-                value={cabecera.proveedor}
-                onChange={(e) => setCabecera({...cabecera, proveedor: e.target.value})}
-              >
+              <select className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-orange font-bold" value={cabecera.proveedor} onChange={(e) => setCabecera({...cabecera, proveedor: e.target.value})}>
                 <option value="">Seleccionar Proveedor...</option>
                 {listaProveedores.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
               </select>
@@ -134,7 +142,6 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
             </div>
           </div>
 
-          {/* ITEMS */}
           <div className="space-y-4">
             {items.map((item, index) => (
               <div key={index} className="grid grid-cols-1 md:grid-cols-[2fr_0.8fr_1fr_1fr_1fr_auto] gap-4 items-end bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
@@ -150,9 +157,9 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
                   )}
                 </div>
                 <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">Cant.</label><input type="number" className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-bold" value={item.cantidad} onChange={(e) => actualizarItem(index, 'cantidad', parseInt(e.target.value) || 0)} /></div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">Valor</label><input type="number" className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-bold" value={item.valor} onChange={(e) => actualizarItem(index, 'valor', parseFloat(e.target.value) || 0)} /></div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">Desc.</label><input type="number" className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-bold text-green-600" value={item.descuento} onChange={(e) => actualizarItem(index, 'descuento', parseFloat(e.target.value) || 0)} /></div>
-                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">V. Final</label><div className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs font-black">${(calcularTotalLinea(item)).toLocaleString()}</div></div>
+                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">Costo Base</label><input type="number" className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-bold" value={item.valor} onChange={(e) => actualizarItem(index, 'valor', parseFloat(e.target.value) || 0)} /></div>
+                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">Desc (%)</label><input type="number" placeholder="Ej: 20" className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-bold text-green-600" value={item.descuento} onChange={(e) => actualizarItem(index, 'descuento', parseFloat(e.target.value) || 0)} /></div>
+                <div><label className="text-[9px] font-black uppercase text-slate-400 mb-1 block">Costo Final</label><div className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs font-black">${(calcularTotalLinea(item)).toLocaleString()}</div></div>
                 <button onClick={() => eliminarFila(index)} className="p-2.5 text-slate-300 hover:text-red-500 transition-colors">✕</button>
               </div>
             ))}

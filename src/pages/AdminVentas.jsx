@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { useCatalog } from '../context/CatalogContext';
 import AdminNavbar from '../components/layout/AdminNavbar';
 
-// IMPORTACIONES DE DRAWERS (Asegúrate de que los archivos existan)
+// IMPORTACIONES DE DRAWERS
 import DrawerNuevaVenta from '../components/admin/DrawerNuevaVenta';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta';
 
@@ -32,14 +32,19 @@ export default function AdminVentas() {
   }, []);
 
   const filtered = useMemo(() => 
-    pedidos.filter(p => 
-      (p.clienteEmail?.toLowerCase() || '').includes(busqueda.toLowerCase()) ||
-      (p.id.toLowerCase().includes(busqueda.toLowerCase()))
-    ), [pedidos, busqueda]
+    pedidos.filter(p => {
+      const searchStr = busqueda.toLowerCase();
+      return (
+        (p.clienteEmail?.toLowerCase() || '').includes(searchStr) ||
+        (p.formData?.nombre?.toLowerCase() || '').includes(searchStr) ||
+        (p.formData?.apellido?.toLowerCase() || '').includes(searchStr) ||
+        (p.id.toLowerCase().includes(searchStr))
+      );
+    }), [pedidos, busqueda]
   );
 
   return (
-    <div className="min-h-screen bg-[#F4F7FA] font-poppins text-slate-900 flex flex-col">
+    <div className="min-h-screen bg-[#F4F7FA] font-poppins text-slate-900 flex flex-col relative">
       <AdminNavbar />
       
       <main className="flex-1 max-w-[95rem] w-full mx-auto pt-8 px-6 pb-20">
@@ -69,7 +74,7 @@ export default function AdminVentas() {
         <div className="mb-6">
           <input 
             type="text" 
-            placeholder="Buscar por cliente o ID..." 
+            placeholder="Buscar por nombre, email o ID..." 
             className="w-full md:w-96 p-4 bg-white border border-slate-200 rounded-xl outline-none focus:border-brand-orange shadow-sm"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
@@ -102,7 +107,15 @@ export default function AdminVentas() {
                         {p.tipo || 'WEB'}
                       </span>
                     </td>
-                    <td className="p-6 text-xs font-medium">{p.clienteEmail}</td>
+                    <td className="p-6">
+                      {/* 👉 AGREGADO: Nombre y Apellido */}
+                      <p className="text-sm font-bold text-slate-900">
+                        {p.formData?.nombre} {p.formData?.apellido}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        {p.clienteEmail}
+                      </p>
+                    </td>
                     <td className="p-6 font-black text-sm">${p.totalFinal?.toLocaleString()}</td>
                     <td className="p-6 text-right">
                       <button 
@@ -126,6 +139,7 @@ export default function AdminVentas() {
           productos={productos} 
         />
 
+        {/* Le pasamos todos los pedidos para que el drawer pueda buscar el historial del cliente */}
         <DrawerDetalleVenta 
           isOpen={isDetalleOpen} 
           onClose={() => setIsDetalleOpen(false)} 

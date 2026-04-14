@@ -30,7 +30,7 @@ export default function AdminSelector() {
 
         {/* BOTÓN STOREFRONT */}
         <button 
-          onClick={() => handleOption("/admin/storefront")}
+          onClick={() => handleOption("/locked_storefront")}
           className="group bg-brand-blue border border-light-blue/10 p-12 rounded-[2rem] text-center hover:border-brand-orange transition-all duration-500 shadow-2xl"
         >
           <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">✨</div>

@@ -1,157 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../config/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
+// 👉 Importamos nuestro nuevo hook
+import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 
 const Icons = {
   Inventario: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>),
   Ventas: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M9 14l6-6m-4 0h4v4M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" /></svg>),
   Clientes: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>),
   Ajustes: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>),
+  Facturacion: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>),
   TrendingUp: () => (<svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>),
   Clock: () => (<svg className="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>),
   MapPin: () => (<svg className="w-5 h-5 text-light-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>),
-  Calendar: () => (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>)
+  Calendar: () => (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z" /></svg>)
 };
 
 export default function LockedCellar() {
-  const [loading, setLoading] = useState(true);
-  
   const [filtroActivo, setFiltroActivo] = useState('este_mes'); 
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
 
-  const [metricas, setMetricas] = useState({
-    ingresosBrutos: 0, pendienteCobro: 0, ticketPromedio: 0, pedidosPagados: 0,
-    mrrSuscripciones: 0, topCiudades: [], horarioEstrella: '', modalidadesEnvio: {},
-    sociosTotales: 0, sociosDescorche: 0, sociosTerruno: 0,
-    nuevosDescorche: 0, nuevosTerruno: 0
-  });
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        const now = new Date();
-        let inicioRango = new Date();
-        let finRango = new Date();
-
-        if (filtroActivo === 'este_mes') {
-          inicioRango = new Date(now.getFullYear(), now.getMonth(), 1); 
-          finRango = now;
-        } else if (filtroActivo === '30_dias') {
-          inicioRango = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-          finRango = now;
-        } else if (filtroActivo === 'rango' && fechaInicio && fechaFin) {
-          inicioRango = new Date(fechaInicio + 'T00:00:00');
-          finRango = new Date(fechaFin + 'T23:59:59');
-        }
-
-        const pedidosSnap = await getDocs(collection(db, 'pedidos'));
-        
-        let ingresos = 0, pendientes = 0, pagados = 0, mrr = 0;
-        const hourCounts = {}, cityCounts = {}, envioCounts = {};
-
-        pedidosSnap.docs.forEach(doc => {
-          const p = doc.data();
-          if (!p.createdAt) return;
-          const fechaPedido = p.createdAt.toDate();
-
-          if (fechaPedido >= inicioRango && fechaPedido <= finRango) {
-            const total = p.totalFinal || 0;
-            
-            if (p.estado === 'Pendiente') pendientes += total;
-            else if (p.estado !== 'Cancelado') {
-              ingresos += total;
-              pagados += 1;
-              if (p.tipo === 'suscripcion') mrr += total;
-            }
-
-            const hora = fechaPedido.getHours();
-            hourCounts[hora] = (hourCounts[hora] || 0) + 1;
-
-            if (p.formData?.ciudad) {
-              const ciudadNorm = p.formData.ciudad.toUpperCase().trim();
-              cityCounts[ciudadNorm] = (cityCounts[ciudadNorm] || 0) + 1;
-            }
-          }
-        });
-
-        const clientesSnap = await getDocs(collection(db, 'clientes'));
-        
-        let descorche = 0, terruno = 0;
-        let nDescorche = 0, nTerruno = 0;
-
-        clientesSnap.docs.forEach(doc => {
-          const c = doc.data();
-          const esDescorche = c.badge?.toLowerCase() === 'descorche';
-          const esTerruno = c.badge?.toLowerCase() === 'terruño' || c.badge?.toLowerCase() === 'terruno';
-          
-          if (esDescorche) descorche++;
-          if (esTerruno) terruno++;
-
-          if (c.createdAt) {
-            const fechaAlta = c.createdAt.toDate();
-            if (fechaAlta >= inicioRango && fechaAlta <= finRango) {
-              if (esDescorche) nDescorche++;
-              if (esTerruno) nTerruno++;
-            }
-          }
-        });
-
-        const ticketProm = pagados > 0 ? (ingresos / pagados) : 0;
-        const top3Ciudades = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
-        
-        // 👉 NUEVA LÓGICA: Rango de Horario Estrella (Sliding Window de 3 horas)
-        let horaTop = 'N/A';
-        if (pagados >= 3) {
-          let maxSum = 0;
-          let bestStart = 0;
-          // Buscamos el bloque de 3 horas continuas con más ventas
-          for (let i = 0; i <= 21; i++) {
-            const sum = (hourCounts[i] || 0) + (hourCounts[i+1] || 0) + (hourCounts[i+2] || 0);
-            if (sum > maxSum) {
-              maxSum = sum;
-              bestStart = i;
-            }
-          }
-          if (maxSum > 0) {
-            horaTop = `${bestStart}:00 - ${bestStart + 3}:00 hs`;
-          }
-        } else if (Object.keys(hourCounts).length > 0) {
-          // Fallback si hay muy pocas ventas: muestra la hora pico exacta
-          const mejorHora = Object.keys(hourCounts).reduce((a, b) => hourCounts[a] > hourCounts[b] ? a : b);
-          horaTop = `${mejorHora}:00 - ${parseInt(mejorHora) + 1}:00 hs`;
-        }
-
-        setMetricas({
-          ingresosBrutos: ingresos, pendienteCobro: pendientes, ticketPromedio: ticketProm,
-          pedidosPagados: pagados, mrrSuscripciones: mrr, topCiudades: top3Ciudades,
-          horarioEstrella: horaTop, modalidadesEnvio: envioCounts,
-          sociosTotales: descorche + terruno, sociosDescorche: descorche, sociosTerruno: terruno,
-          nuevosDescorche: nDescorche, nuevosTerruno: nTerruno
-        });
-
-      } catch (error) {
-        console.error("Error al cargar dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (filtroActivo !== 'rango' || (filtroActivo === 'rango' && fechaInicio && fechaFin)) {
-      fetchDashboardData();
-    } else {
-      setLoading(false);
-    }
-  }, [filtroActivo, fechaInicio, fechaFin]);
+  // 👉 Usamos el Hook: Obtenemos datos y estado de carga de forma limpia
+  const { metricas, loading } = useDashboardMetrics(filtroActivo, fechaInicio, fechaFin);
 
   const menuCards = [
     { titulo: 'Inventario', icono: <Icons.Inventario />, link: '/locked_cellar/inventario' },
     { titulo: 'Ventas', icono: <Icons.Ventas />, link: '/locked_cellar/ventas' },
     { titulo: 'Clientes', icono: <Icons.Clientes />, link: '/locked_cellar/clientes' },
-    { titulo: 'Configuración', icono: <Icons.Ajustes />, link: '/locked_cellar/ajustes' } // 👉 TEXTO CAMBIADO
+    { titulo: 'Facturación', icono: <Icons.Facturacion />, link: '/locked_cellar/facturacion' },
+    { titulo: 'Configuración', icono: <Icons.Ajustes />, link: '/locked_cellar/ajustes' } 
   ];
 
   return (
@@ -167,7 +45,7 @@ export default function LockedCellar() {
             <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-light-blue">Panel de Control & Inteligencia</p>
           </div>
           
-          <div className="grid grid-cols-2 md:flex gap-3 w-full xl:w-auto">
+          <div className="grid grid-cols-2 md:flex flex-wrap gap-3 w-full xl:w-auto">
             {menuCards.map((card, idx) => (
               <Link key={idx} to={card.link} className="flex items-center gap-2 bg-white border border-light-blue/20 px-5 py-4 hover:border-brand-orange transition-all shadow-sm rounded-sm group">
                 <span className="text-light-blue group-hover:text-brand-orange transition-colors">{card.icono}</span>
@@ -180,24 +58,15 @@ export default function LockedCellar() {
         {/* BARRA DE FILTROS */}
         <div className="bg-white border border-light-blue/10 p-4 rounded-sm shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex bg-gray-100 p-1 rounded-sm w-full md:w-auto">
-            <button 
-              onClick={() => setFiltroActivo('este_mes')} 
-              className={`flex-1 md:flex-none px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all outline-none ${filtroActivo === 'este_mes' ? 'bg-white text-brand-orange shadow-sm' : 'text-dark-grey hover:text-dark-blue'}`}
-            >
-              Este Mes
-            </button>
-            <button 
-              onClick={() => setFiltroActivo('30_dias')} 
-              className={`flex-1 md:flex-none px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all outline-none ${filtroActivo === '30_dias' ? 'bg-white text-brand-orange shadow-sm' : 'text-dark-grey hover:text-dark-blue'}`}
-            >
-              Últimos 30 Días
-            </button>
-            <button 
-              onClick={() => setFiltroActivo('rango')} 
-              className={`flex-1 md:flex-none px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all outline-none ${filtroActivo === 'rango' ? 'bg-white text-brand-orange shadow-sm' : 'text-dark-grey hover:text-dark-blue'}`}
-            >
-              Rango
-            </button>
+            {['este_mes', '30_dias', 'rango'].map((f) => (
+              <button 
+                key={f}
+                onClick={() => setFiltroActivo(f)} 
+                className={`flex-1 md:flex-none px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all outline-none ${filtroActivo === f ? 'bg-white text-brand-orange shadow-sm' : 'text-dark-grey hover:text-dark-blue'}`}
+              >
+                {f.replace('_', ' ')}
+              </button>
+            ))}
           </div>
 
           {filtroActivo === 'rango' && (

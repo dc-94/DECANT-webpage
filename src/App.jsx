@@ -27,6 +27,7 @@ import LockedStorefront from './pages/locked_storefront';
 import AdminInventario from './pages/AdminInventario'; 
 import AdminVentas from './pages/AdminVentas';
 import AdminClientes from './pages/AdminClientes';
+import AdminFacturacion from './pages/AdminFacturacion';
 import AdminAjustes from './pages/AdminAjustes';
 
 import ProtectedRoute from './components/admin/ProtectedRoute';
@@ -76,6 +77,7 @@ function App() {
                 <Route path="/locked_cellar/ventas" element={<ProtectedRoute><AdminVentas /></ProtectedRoute>} />
                 <Route path="/locked_cellar/clientes" element={<ProtectedRoute><AdminClientes /></ProtectedRoute>} />
                 <Route path="/locked_cellar/ajustes" element={<ProtectedRoute><AdminAjustes /></ProtectedRoute>} />
+                <Route path="/locked_cellar/facturacion" element={<ProtectedRoute><AdminFacturacion /></ProtectedRoute>} />
               </Routes>
             </Router>
           </CartProvider>

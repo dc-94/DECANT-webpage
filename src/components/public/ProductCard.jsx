@@ -1,10 +1,11 @@
+// 👉 Agregamos 'memo' a las importaciones de React
+import { useState, memo } from 'react';
 import { useCart } from '../../context/CartContext';
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import BlobProducto from '../icons/BlobProducto';
 
-// Ícono de Bolsa
-const ShoppingBagIcon = ({ className }) => (
+// Ícono de Bolsa (lo sacamos del componente principal para que no se redefine en cada render)
+const ShoppingBagIcon = memo(({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path 
       strokeLinecap="square" 
@@ -13,9 +14,10 @@ const ShoppingBagIcon = ({ className }) => (
       d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" 
     />
   </svg>
-);
+));
 
-export default function ProductCard({ producto }) {
+// 👉 Envolvemos todo el componente en memo
+const ProductCard = memo(function ProductCard({ producto }) {
   const { addToCart } = useCart();
   const [showQuantity, setShowQuantity] = useState(false);
   const [cantidad, setCantidad] = useState(1);
@@ -46,15 +48,12 @@ export default function ProductCard({ producto }) {
     }
   };
 
-  // 👉 LA RUTA SEGURA (Slug o ID)
   const productUrl = `/producto/${producto.slug || producto.id}`;
 
   return (
     <div className="group flex flex-col h-full bg-transparent font-poppins">
       
-      {/* =========================================
-          1. ZONA IMAGEN (Envuelto en Link seguro)
-          ========================================= */}
+      {/* 1. ZONA IMAGEN */}
       <Link to={productUrl} className="relative aspect-[3/4] flex items-center justify-center overflow-hidden p-0 bg-transparent flex-shrink-0 block outline-none">
         <div className="absolute inset-0 flex items-center justify-center z-0 opacity-15 transition-transform duration-1000 group-hover:scale-110 pointer-events-none">
            <BlobProducto className="w-[90%] h-[90%] text-light-blue" /> 
@@ -73,12 +72,9 @@ export default function ProductCard({ producto }) {
         )}
       </Link>
 
-      {/* =========================================
-          2. ZONA INFO
-          ========================================= */}
+      {/* 2. ZONA INFO */}
       <div className="flex flex-col flex-1 mt-3">
         
-        {/* LEYENDA ESTADO */}
         <div className="h-6 flex items-start justify-center w-full mb-3 flex-shrink-0">
           {producto.aPedido ? (
             <div className="bg-extra-black text-brand-white text-[9px] font-black uppercase tracking-[0.4em] py-1.5 w-full text-center shadow-sm">
@@ -91,7 +87,6 @@ export default function ProductCard({ producto }) {
           ) : null}
         </div>
 
-        {/* NOMBRE (Envuelto en Link seguro) */}
         <div className="mb-2">
           <Link to={productUrl} className="outline-none block">
             <h3 className="font-playfair italic text-xl md:text-2xl leading-tight text-dark-blue line-clamp-3 hover:text-brand-orange transition-colors">
@@ -100,21 +95,16 @@ export default function ProductCard({ producto }) {
           </Link>
         </div>
 
-        {/* BODEGA + LÍNEA */}
         <div className="flex items-center gap-2 text-[9px] font-poppins font-black uppercase tracking-[0.25em] text-dark-blue mb-2">
           <span className="whitespace-nowrap truncate max-w-[70%]">{producto.bodega}</span>
           <span className="flex-1 h-[1px] bg-dark-blue/15"></span>
         </div>
 
-        {/* LÍNEA + CEPA */}
         <div className="flex items-center gap-2 text-[8px] font-poppins font-black uppercase tracking-[0.4em] text-light-blue mb-4">
           <span className="flex-1 h-[1px] bg-dark-blue/10"></span>
           <span className="whitespace-nowrap truncate max-w-[80%]">{producto.varietal || 'CEPA'}</span>
         </div>
 
-        {/* =========================================
-            PRECIOS Y DESCUENTOS
-            ========================================= */}
         <div className="mt-auto flex flex-col pt-2">
           <div className="h-5 flex items-end mb-1">
             {tieneDescuento && (producto.descuentoPorcentaje > 0 || mostrarLabelAdicional) && (
@@ -145,9 +135,7 @@ export default function ProductCard({ producto }) {
         </div>
       </div>
 
-      {/* =========================================
-          3. ACCIONES
-          ========================================= */}
+      {/* 3. ACCIONES */}
       <div className="mt-3 h-[42px] flex-shrink-0 relative z-30">
         {!showQuantity ? (
           <button 
@@ -203,4 +191,6 @@ export default function ProductCard({ producto }) {
       </div>
     </div>
   );
-}
+}); // 👉 Cerramos el paréntesis del memo
+
+export default ProductCard;
