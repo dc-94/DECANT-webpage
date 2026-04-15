@@ -8,9 +8,6 @@ import {
   doc, 
   getDoc, 
   collection, 
-  serverTimestamp, 
-  writeBatch, 
-  increment 
 } from 'firebase/firestore';
 
 // Íconos
@@ -109,120 +106,51 @@ export default function Checkout() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // 👉 Iniciamos el BATCH (Lote de escritura atómica)
-    const batch = writeBatch(db);
-
     try {
-      const emailLower = formData.email.toLowerCase().trim();
-      const clientRef = doc(db, 'clientes', emailLower);
-      const clientSnap = await getDoc(clientRef);
-      
-      let numeroCliente = '';
+      // 1. Extraemos SOLO lo necesario del carrito (IDs y cantidades). 
+      // Si el usuario intentó hackear los precios en su navegador, no importa.
+      const cartReducido = cart.map(item => ({ id: item.id, cantidad: item.cantidad }));
 
-      // 1. Lógica de Cliente (Asignamos al Batch)
-      if (clientSnap.exists()) {
-        numeroCliente = clientSnap.data().numeroCliente;
-        batch.set(clientRef, {
-          nombre: formData.nombre, 
-          apellido: formData.apellido,
-          telefono: formData.telefono, 
-          direccionDefault: formData.envio === 'convenir' ? formData.direccion : clientSnap.data().direccionDefault,
-          ciudad: formData.envio === 'convenir' ? formData.ciudad : clientSnap.data().ciudad, 
-          cp: formData.envio === 'convenir' ? formData.cp : clientSnap.data().cp,
-          totalCompras: increment(1), // Usamos increment para evitar errores de conteo
-        }, { merge: true });
-      } else {
-        numeroCliente = Math.floor(1000 + Math.random() * 9000).toString();
-        batch.set(clientRef, {
-          numeroCliente, 
-          nombre: formData.nombre, 
-          apellido: formData.apellido,
-          email: emailLower, 
-          telefono: formData.telefono, 
-          direccionDefault: formData.envio === 'convenir' ? formData.direccion : '',
-          ciudad: formData.envio === 'convenir' ? formData.ciudad : '', 
-          cp: formData.envio === 'convenir' ? formData.cp : '', 
-          totalCompras: 1, 
-          badge: null,
-          createdAt: serverTimestamp()
-        });
-      }
-
-      // 2. Referencia para el nuevo Pedido
-      const pedidosRef = collection(db, 'pedidos');
-      const newOrderRef = doc(pedidosRef); // Generamos la referencia con ID automático
-      const pedidoIdReal = newOrderRef.id;
-      const numeroOrdenCorto = pedidoIdReal.slice(0, 5).toUpperCase();
-
-      const pedidoInfo = {
-        clienteEmail: emailLower, 
-        numeroCliente, 
-        tipo: 'tienda',
-        cart: cart.map(item => ({
-            id: item.id,
-            nombre: item.nombre,
-            cantidad: item.cantidad,
-            precioFinal: item.precioFinal,
-            imageUrl: item.imageUrl
-        })), 
-        subtotal: totalPrecio, 
-        descuentoVIP: { aplicado: !!datosSocio, badge: datosSocio ? datosSocio.badge : null, monto: montoDescuentoVIP },
-        descuentoTransferencia: descuentoMontoTransferencia, 
-        totalFinal,
-        envio: formData.envio, 
-        textoEnvio, 
-        formData, 
-        estado: 'Pendiente', 
-        createdAt: serverTimestamp()
-      };
-
-      // Agregamos la creación del pedido al Batch
-      batch.set(newOrderRef, pedidoInfo);
-
-      // 3. ACTUALIZACIÓN DE STOCK 
-      cart.forEach((item) => {
-        const productRef = doc(db, 'productos', item.id);
-        // Restamos la cantidad del stock actual en Firebase
-        batch.update(productRef, {
-          stock: increment(-item.cantidad)
-        });
-      });
-
-      await batch.commit();
-
-      // 4. ENVÍO DE EMAIL (Cloud Function)
-      fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
+      // 2. Llamamos a nuestra Bóveda Segura en el Servidor
+      const response = await fetch('https://us-central1-web-decant.cloudfunctions.net/procesarCheckoutTienda', { // 👈 Reemplaza con la URL que te de Firebase al deployar
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          toEmail: emailLower,
-          toName: `${formData.nombre} ${formData.apellido}`,
-          templateId: 1,
-          params: {
-            nombre: formData.nombre,
-            orden: numeroOrdenCorto,
-            link_tracking: `${import.meta.env.VITE_BASE_URL}/pedido/${pedidoIdReal}`
-          }
+          formData,
+          cart: cartReducido,
+          pago: formData.pago,
+          envio: formData.envio,
+          inputSocio
         })
-      }).catch(err => console.error("Aviso: El correo no pudo enviarse", err));
+      });
 
-      // 5. LIMPIEZA Y NAVEGACIÓN
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Error desconocido en el servidor");
+      }
+
+      // 3. LIMPIEZA Y NAVEGACIÓN
+      const emailLower = formData.email.toLowerCase().trim();
+      
       localStorage.setItem('decant_customer_data', JSON.stringify({
-          nombre: formData.nombre, apellido: formData.apellido, email: formData.email, telefono: formData.telefono
+          nombre: formData.nombre, apellido: formData.apellido, email: emailLower, telefono: formData.telefono
       }));
+      
+      // Guardamos en LocalStorage los valores REALES que devolvió el servidor (pisando cualquier hackeo)
       localStorage.setItem('decant_last_order', JSON.stringify({
-          id: pedidoIdReal,
-          ordenDisplay: numeroOrdenCorto,
+          id: result.pedidoId,
+          ordenDisplay: result.ordenDisplay,
           formData: formData,
-          totalFinal: totalFinal,
+          totalFinal: result.totalFinalReal, // El precio que dictó el servidor
           clienteEmail: emailLower
-        }));
+      }));
 
-        clearCart();
-        navigate('/gracias');
+      clearCart();
+      navigate('/gracias');
 
     } catch (error) {
-      console.error("Error en el Checkout Batch:", error);
+      console.error("Error en el Checkout Seguro:", error);
       alert("Hubo un problema al procesar tu pedido. Por favor, intenta nuevamente.");
       setIsProcessing(false);
     }

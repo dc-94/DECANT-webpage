@@ -1,52 +1,92 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-
-const StarIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-);
+import { useEffect, useState, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import SEO from '../components/public/SEO';
+import { db } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export default function GraciasSuscripciones() {
-  const [pedido, setPedido] = useState(null);
+  const [ordenData, setOrdenData] = useState(null);
+  const correoEnviado = useRef(false); // Para evitar que se envíe dos veces si recargan la página
   const navigate = useNavigate();
 
   useEffect(() => {
-    const data = localStorage.getItem('decant_sub_order');
-    if (data) {
-      setPedido(JSON.parse(data));
-    } else {
-      navigate('/');
-    }
+    const fetchOrderAndSendEmail = async () => {
+      const dataStr = localStorage.getItem('decant_sub_order');
+      if (!dataStr) {
+        navigate('/'); // Si entró sin pagar, lo pateamos
+        return;
+      }
+      
+      const order = JSON.parse(dataStr);
+      setOrdenData(order);
+
+      // Si ya mandamos el correo, no hacemos nada
+      if (correoEnviado.current || order.correoEnviado) return;
+      correoEnviado.current = true;
+
+      try {
+        // 1. Actualizamos la orden en Firebase como PAGADA
+        await updateDoc(doc(db, 'pedidos', order.id), {
+          estado: 'Pagado',
+          pagoAprobado: true
+        });
+
+        // 2. Enviamos el Correo de Brevo
+        await fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', { // 👈 Tu URL de correos
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: order.clienteEmail,
+            toName: `${order.formData.nombre} ${order.formData.apellido}`,
+            templateId: 2, 
+            params: {
+              nombre: order.formData.nombre,
+              plan: order.plan,
+              pin: order.numeroSocio,
+              orden: order.ordenDisplay,
+              link_tracking: `${window.location.origin}/pedido/${order.id}`
+            }
+          })
+        });
+
+        // 3. Marcamos en localstorage que ya se envió
+        localStorage.setItem('decant_sub_order', JSON.stringify({ ...order, correoEnviado: true }));
+
+      } catch (error) {
+        console.error("Error confirmando pago y enviando mail:", error);
+      }
+    };
+
+    fetchOrderAndSendEmail();
   }, [navigate]);
 
-  if (!pedido) return null;
+  if (!ordenData) return null;
 
   return (
-    <div className="min-h-screen bg-dark-blue text-[#F7F5F0] font-poppins flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-lg animate-in fade-in duration-500">
-        <div className="flex flex-col items-center text-center mb-10">
-          <div className="w-16 h-16 border border-brand-orange bg-brand-orange/10 rounded-full flex items-center justify-center mb-6">
-            <StarIcon className="w-8 h-8 text-brand-orange" />
-          </div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-orange mb-4">BIENVENIDO AL CLUB EXCLUSIVO</p>
-          <h2 className="font-playfair italic text-4xl md:text-5xl text-white">¡Salud, {pedido.formData.nombre}!</h2>
+    <div className="min-h-screen bg-extra-black text-brand-white font-poppins flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <SEO title="¡Bienvenido al Club!" description="Tu suscripción a Decant se ha completado." />
+      
+      {/* Círculos de luz de fondo */}
+      <div className="absolute top-[-20%] right-[-10%] w-[50rem] h-[50rem] bg-brand-orange/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
+      <div className="absolute bottom-[-20%] left-[-10%] w-[40rem] h-[40rem] bg-light-blue/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
+
+      <div className="max-w-2xl w-full text-center relative z-10 flex flex-col items-center">
+        <svg className="w-20 h-20 text-brand-orange mb-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        
+        <h1 className="font-playfair italic text-5xl md:text-6xl text-brand-white mb-6">¡Bienvenido al Club!</h1>
+        <p className="text-sm md:text-base text-brand-white/80 mb-12 max-w-lg mx-auto leading-relaxed">
+          Hemos confirmado tu suscripción al plan <strong className="text-brand-orange font-bold uppercase">{ordenData.plan}</strong>. Te hemos enviado un correo con todos los detalles de tu nueva membresía.
+        </p>
+
+        <div className="bg-dark-blue/20 backdrop-blur-md border border-light-blue/20 p-8 rounded-sm w-full mb-12">
+          <span className="text-[10px] uppercase tracking-[0.3em] text-brand-white/50 block mb-2 font-bold">Tu PIN de Socio Exclusivo</span>
+          <p className="text-5xl font-black text-brand-orange tracking-widest">{ordenData.numeroSocio}</p>
+          <p className="text-[10px] text-brand-white/60 mt-4 uppercase tracking-widest">Guárdalo. Lo usarás para aplicar descuentos en la tienda.</p>
         </div>
 
-        <div className="bg-gradient-to-br from-[#1a2332] to-dark-blue border border-brand-orange/50 p-8 md:p-12 shadow-2xl mb-8 rounded-lg text-center">
-          <p className="text-sm text-[#F7F5F0]/80 mb-8">Ya eres miembro oficial. Tu tarjeta de socio digital ha sido activada.</p>
-          
-          <div className="bg-black/20 p-6 rounded-md border border-white/5 inline-block w-full">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-brand-orange mb-2 block">N° DE SOCIO (PIN)</span>
-            <span className="font-playfair italic text-5xl font-black text-white tracking-widest">#{pedido?.numeroSocio}</span>
-          </div>
-          
-          <p className="text-[9px] uppercase tracking-widest text-[#F7F5F0]/40 mt-6 italic">
-            * Usa este número en tus compras para activar tus descuentos automáticos.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center gap-6">
-          <Link to={`/pedido/${pedido.id}`} className="w-full border border-white/20 text-white text-center text-[10px] font-black uppercase tracking-[0.2em] px-8 py-5 hover:bg-brand-orange hover:border-brand-orange transition-all">Ver Estado de mi Membresía</Link>
-          <Link to="/shop" className="w-full bg-brand-orange text-white text-center text-[10px] font-black uppercase tracking-[0.2em] px-8 py-5 hover:bg-white hover:text-dark-blue transition-colors">Comprar con mi descuento</Link>
+        <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
+          <Link to="/" className="bg-brand-white text-extra-black text-[10px] font-black uppercase tracking-[0.2em] px-8 py-5 hover:bg-brand-orange hover:text-brand-white transition-all w-full sm:w-auto text-center">Volver al Inicio</Link>
+          <a href={`https://wa.me/5493416878568?text=Hola!%20Acabo%20de%20suscribirme%20al%20plan%20${ordenData.plan}.%20Mi%20orden%20es%20%23${ordenData.ordenDisplay}`} target="_blank" rel="noopener noreferrer" className="bg-transparent border border-light-blue/30 text-brand-white text-[10px] font-black uppercase tracking-[0.2em] px-8 py-5 hover:border-brand-orange hover:text-brand-orange transition-all w-full sm:w-auto text-center">Contactar a mi Concierge</a>
         </div>
       </div>
     </div>
