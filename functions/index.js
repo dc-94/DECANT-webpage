@@ -164,29 +164,3 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
     return res.status(500).send({ success: false, error: error.message });
   }
 });
-
-// 👉 3. NUEVA FUNCIÓN: CREAR LINK DE SUSCRIPCIÓN MP
-exports.crearLinkSuscripcion = onRequest({ secrets: ["MP_ACCESS_TOKEN"] }, async (req, res) => {
-  if (handleCORS(req, res)) return;
-
-  try {
-    const { email, planId, returnUrl } = req.body;
-    
-    const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
-    const preapproval = new PreApproval(client);
-
-    const result = await preapproval.create({
-      body: {
-        preapproval_plan_id: planId, 
-        payer_email: email,
-        back_url: returnUrl,
-        status: "pending"
-      }
-    });
-
-    return res.status(200).send({ success: true, init_point: result.init_point });
-  } catch (error) {
-    logger.error("Error al crear suscripción MP:", error.message);
-    return res.status(500).send({ success: false, error: error.message });
-  }
-});

@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SEO from '../components/public/SEO';
-import { useNavigate } from 'react-router-dom';
-import { useCart } from '../context/CartContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '../config/firebase'; 
 import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -10,12 +9,10 @@ const ArrowLeftIcon = ({ className }) => (<svg className={className} fill="none"
 const ShieldIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>);
 
 export default function CheckoutSuscripcion() {
-  const { cart, clearCart } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const cartSuscripcion = cart.filter(item => item.label?.toLowerCase() === 'suscripción');
-  const subtotalSuscripcion = cartSuscripcion.reduce((acc, item) => acc + (item.precioFinal * item.cantidad), 0);
+  const [planVIP, setPlanVIP] = useState(null);
 
   const [activeStep, setActiveStep] = useState(1);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
@@ -24,37 +21,58 @@ export default function CheckoutSuscripcion() {
     nombre: '', apellido: '', email: '', telefono: '', direccion: '', ciudad: '', cp: '', envio: 'rosario', pago: 'mercadopago' 
   });
 
+  useEffect(() => {
+    if (location.state && location.state.planElegido) {
+      setPlanVIP(location.state.planElegido);
+    }
+  }, [location]);
+
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const textoEnvio = (formData.envio === 'rosario' || formData.envio === 'retiro') ? 'Gratis' : 'A convenir';
 
- const handleCheckout = async (e) => {
+  const handleCheckout = async (e) => {
     e.preventDefault();
+    if (!planVIP) return; 
     setIsProcessing(true);
 
     try {
       const emailLower = formData.email.toLowerCase().trim();
       const numeroCliente = Math.floor(1000 + Math.random() * 9000).toString(); 
-      const itemSub = cartSuscripcion[0] || {};
-      const nombrePlan = itemSub.nombre || 'Club de Vinos';
-      const badgeSocio = itemSub.subcategoria || itemSub.nombre || 'Socio VIP';
       
-      // 👉 1. TU ID DE PRUEBA (Asegurate de que este ID sea el que sacaste del link)
-      let mpPlanId = '901b321b33f0416680fff513a8c3fdf9'; 
+      const nombrePlan = planVIP.nombre || 'Club de Vinos';
+      const badgeSocio = planVIP.subcategoria || planVIP.nombre || 'Socio VIP';
+      const subtotalSuscripcion = planVIP.precioFinal; 
+      
+      let mpPlanId = '';
+      
+      if (nombrePlan.toLowerCase().includes('descorche')) {
+        mpPlanId = '6a7c756d3ab64a4b9e7179902b227064'; 
+        
+      } else if (nombrePlan.toLowerCase().includes('terruño') || nombrePlan.toLowerCase().includes('terruno')) {
+        mpPlanId = 'cf1ddb5a8aa4419e8a604a91e37d60d8';
 
+      } 
+      else {
+        // Fallback por si hay algún error
+        mpPlanId = '6a7c756d3ab64a4b9e7179902b227064'; 
+      }
 
-      // 2. Guardar Cliente (Pre-registro en tu base de datos)
-      await setDoc(doc(db, 'clientes', emailLower), {
+     await setDoc(doc(db, 'clientes', emailLower), {
         nombre: formData.nombre, 
         apellido: formData.apellido, 
         email: emailLower, 
         telefono: formData.telefono,
+        direccionDefault: formData.direccion,
+        ciudad: formData.ciudad,
+        cp: formData.cp,  
         numeroCliente: numeroCliente, 
         badge: badgeSocio, 
         createdAt: serverTimestamp()
       }, { merge: true });
 
-      // 3. Crear Pedido (ESTADO PENDIENTE)
+      const cartSuscripcion = [planVIP]; 
+
       const pedidoInfo = {
         clienteEmail: emailLower, 
         numeroCliente: numeroCliente, 
@@ -74,13 +92,10 @@ export default function CheckoutSuscripcion() {
       const pedidoRef = await addDoc(collection(db, 'pedidos'), pedidoInfo);
       const numeroOrdenCorto = pedidoRef.id.slice(0, 5).toUpperCase();
 
-      // 4. Guardamos en LocalStorage para leerlo en la página de Gracias
       localStorage.setItem('decant_sub_order', JSON.stringify({ 
         ...pedidoInfo, id: pedidoRef.id, ordenDisplay: numeroOrdenCorto 
       }));
 
-      // 👉 5. EL SALTO DIRECTO A MERCADO PAGO (SIN PASAR POR CLOUD FUNCTIONS)
-      clearCart(); 
       window.location.href = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
 
     } catch (error) {
@@ -90,13 +105,33 @@ export default function CheckoutSuscripcion() {
     }
   };
 
-  if (cartSuscripcion.length === 0) {
+  // 👉 EL BARRICADA ANTI-INTRUSOS
+  if (!planVIP) {
     return (
-      <div className="min-h-screen bg-extra-black flex flex-col items-center justify-center p-6">
-        <h2 className="font-playfair italic text-3xl text-brand-orange mb-6">No hay membresías en tu copa</h2>
-        <button onClick={() => navigate('/suscripciones')} className="font-poppins text-xs font-black uppercase tracking-[0.2em] text-extra-black bg-brand-white px-8 py-4 hover:bg-brand-orange hover:text-brand-white transition-colors">Ver Club de Vinos</button>
+      <div className="min-h-screen bg-extra-black flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="font-playfair italic text-3xl text-brand-orange mb-4">Aún no has elegido una membresía</h2>
+        <p className="font-poppins text-brand-white/80 text-sm mb-8 max-w-md">
+          Para continuar con el registro seguro, por favor selecciona el plan que mejor se adapte a tu paladar.
+        </p>
+        <button 
+          onClick={() => navigate('/suscripciones')} 
+          className="font-poppins text-[10px] font-black uppercase tracking-[0.2em] text-extra-black bg-brand-white px-10 py-5 hover:bg-brand-orange hover:text-brand-white transition-all shadow-lg outline-none"
+        >
+          Explorar Membresías
+        </button>
       </div>
     );
+  }
+
+  // 👉 RECONSTRUCCIÓN DE BENEFICIOS SEGÚN EL PLAN
+  let beneficiosPlan = [];
+  const nombreLower = planVIP.nombre.toLowerCase();
+  if (nombreLower.includes('descorche')) {
+    beneficiosPlan = ["Selección curada mensual", "Notas de cata y maridaje sugerido", "10% OFF en todo el Shop", "Envío bonificado en Rosario"];
+  } else if (nombreLower.includes('terruño') || nombreLower.includes('terruno')) {
+    beneficiosPlan = ["Selección Alta Gama mensual", "Acceso a pre-ventas limitadas", "15% OFF en todo el Shop", "Invitación a catas privadas", "Envío bonificado en Rosario"];
+  } else {
+    beneficiosPlan = ["Selección curada mensual", "Beneficios exclusivos en el Shop", "Envío bonificado en Rosario"];
   }
 
   const inputClases = "w-full bg-dark-blue/40 backdrop-blur-sm border-b border-light-blue/20 px-4 py-4 text-sm outline-none focus:border-brand-orange text-brand-white placeholder-brand-white/30 transition-all focus:bg-dark-blue/60";
@@ -104,23 +139,42 @@ export default function CheckoutSuscripcion() {
   return (
     <div className="min-h-screen bg-extra-black text-brand-white font-poppins selection:bg-brand-orange selection:text-white flex flex-col relative overflow-hidden">
       <SEO title="Finalizar Compra" description="Completa tu compra de forma segura en Decant." />  
-      {/* ... [EL DISEÑO Y LA UI SE MANTIENEN EXACTAMENTE IGUAL QUE ANTES] ... */}
+      
       <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-brand-orange/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[30rem] h-[30rem] bg-light-blue/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
+      {/* VERSIÓN MÓVIL DEL RESUMEN */}
       <div className="md:hidden bg-extra-black/80 backdrop-blur-md border-b border-brand-orange/20 shrink-0 relative z-10">
         <button onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)} className="w-full flex items-center justify-between p-6 text-sm font-black uppercase tracking-widest text-brand-orange outline-none">
-          <span className="flex items-center gap-2">🍷 Club VIP <ChevronIcon className="w-4 h-4" isOpen={mobileSummaryOpen} /></span>
-          <span className="text-white font-bold">${subtotalSuscripcion.toLocaleString()}</span>
+          <span className="flex items-center gap-2">🍷 Resumen de Membresía <ChevronIcon className="w-4 h-4" isOpen={mobileSummaryOpen} /></span>
+          <span className="text-white font-bold">${planVIP.precioFinal.toLocaleString()}</span>
         </button>
-        <div className={`overflow-hidden transition-all duration-300 ${mobileSummaryOpen ? 'max-h-[500px] border-t border-light-blue/10' : 'max-h-0'}`}>
+        <div className={`overflow-hidden transition-all duration-300 ${mobileSummaryOpen ? 'max-h-[800px] border-t border-light-blue/10' : 'max-h-0'}`}>
           <div className="p-6 flex flex-col gap-4">
-             {cartSuscripcion.map((item) => (
-                <div key={item.id} className="flex justify-between items-center">
-                  <span className="font-playfair text-sm text-brand-white/80">{item.nombre}</span>
-                  <span className="font-semibold text-brand-orange">${(item.precioFinal * item.cantidad).toLocaleString()}</span>
-                </div>
-             ))}
+             {/*  PARA MÓVIL (Lado a Lado) */}
+             <div className="flex items-center gap-4">
+               {planVIP.imageUrl && (
+                 <div className="w-14 h-14 bg-brand-white/5 flex items-center justify-center p-1.5 rounded-sm shrink-0">
+                   <img src={planVIP.imageUrl} alt={planVIP.nombre} className="w-full h-full object-contain drop-shadow-md" />
+                 </div>
+               )}
+               <div className="flex flex-col">
+                 <span className="font-playfair text-lg text-brand-white leading-tight">{planVIP.nombre}</span>
+                 <span className="text-[10px] text-brand-white/50 uppercase tracking-widest mt-1">Membresía Mensual</span>
+               </div>
+             </div>
+             
+             <div className="mt-2 pt-4 border-t border-light-blue/10">
+               <span className="text-[10px] uppercase tracking-widest text-brand-white/50 font-bold mb-3 block">Tus Beneficios</span>
+               <ul className="flex flex-col gap-2">
+                 {beneficiosPlan.map((ben, i) => (
+                   <li key={i} className="flex items-start gap-2 text-[11px] font-medium text-brand-white/80">
+                     <svg className="w-3.5 h-3.5 text-brand-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                     {ben}
+                   </li>
+                 ))}
+               </ul>
+             </div>
           </div>
         </div>
       </div>
@@ -194,21 +248,55 @@ export default function CheckoutSuscripcion() {
           </form>
         </div>
         
-        {/* RESUMEN LATERAL (Mismo código que tenías) */}
+        {/* RESUMEN LATERAL (Estilo Card Premium) */}
         <div className="hidden md:block bg-extra-black/40 backdrop-blur-md border-l border-light-blue/10">
-          <div className="sticky top-0 h-screen flex flex-col p-10">
-            <h3 className="font-playfair italic text-4xl text-brand-white mb-8">Tu Membresía</h3>
-            {cartSuscripcion.map((item) => (
-              <div key={item.id} className="grid grid-cols-[80px_1fr_auto] gap-x-6 items-center border-b border-light-blue/10 pb-8">
-                <img src={item.imageUrl} alt={item.nombre} className="h-full w-auto object-contain drop-shadow-lg" />
-                <div className="flex flex-col gap-1">
-                  <h4 className="font-playfair font-bold text-xl text-brand-white">{item.nombre}</h4>
+          <div className="sticky top-0 h-screen flex flex-col p-10 overflow-y-auto">
+            <h3 className="font-playfair italic text-3xl text-brand-white mb-8">Tu Membresía</h3>
+            
+            <div className="bg-dark-blue/20 border border-light-blue/10 p-8 rounded-sm flex flex-col relative shadow-xl">
+              {nombreLower.includes('terruño') && (
+                <div className="absolute top-0 right-0 bg-brand-orange text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-bl-sm">
+                  Más Elegido
                 </div>
-                <div className="font-poppins text-xl font-semibold text-brand-white">${(item.precioFinal * item.cantidad).toLocaleString()}</div>
+              )}
+
+              <div className="text-left mb-6">
+                <span className="text-brand-orange text-[9px] font-black tracking-widest uppercase mb-2 block">Plan Seleccionado</span>
+                <h4 className="font-playfair font-black italic text-3xl text-brand-white">{planVIP.nombre}</h4>
               </div>
-            ))}
+
+              {planVIP.imageUrl && (
+                <div className="w-32 h-32 mx-auto bg-brand-white/5 flex items-center justify-center p-4 mb-6 shrink-0 rounded-sm">
+                  <img src={planVIP.imageUrl} alt={planVIP.nombre} className="w-full h-full object-contain drop-shadow-lg" />
+                </div>
+              )}
+
+              <p className="text-xs text-brand-white/70 mb-8 leading-relaxed">
+                {planVIP.descripcion || "Ideal para quienes buscan descubrir nuevas cepas y bodegas boutique mes a mes, asegurando siempre una mesa bien servida."}
+              </p>
+
+              <div className="mb-8 border-b border-light-blue/10 pb-6">
+                <span className="font-poppins text-3xl font-black text-brand-orange tracking-tight">
+                  ${planVIP.precioFinal.toLocaleString('es-AR')}
+                </span>
+                <span className="text-[10px] font-bold text-light-blue ml-2 uppercase tracking-widest">/ mes</span>
+              </div>
+              
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-brand-white/50 font-bold mb-4 block">Beneficios Incluidos</span>
+                <ul className="flex flex-col gap-4">
+                  {beneficiosPlan.map((ben, i) => (
+                    <li key={i} className="flex items-start gap-3 text-xs font-medium text-brand-white/80">
+                      <svg className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                      {ben}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   );

@@ -1,25 +1,25 @@
 import { useState } from 'react';
 import SEO from '../components/public/SEO';
 import MainNavbar from '../components/layout/MainNavbar';
-import { useCart } from '../context/CartContext';
 import { useCatalog } from '../context/CatalogContext'; 
+import { useNavigate } from 'react-router-dom'; // 👉 Agregamos useNavigate
 import Footer from '../components/layout/Footer';
+
 const StepIcons = [
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.773 2.853M7.228 22l.758-2.83M14.44 5.06h-.01M2.014 12.062H2" /></svg>,
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
-  // Ícono de Pausar arreglado
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 ];
 
 export default function Suscripciones() {
   const [openFaq, setOpenFaq] = useState(null);
   
-  const { addToCart } = useCart(); 
+  const navigate = useNavigate(); // 👉 Inicializamos la navegación
   const { productos } = useCatalog();
 
   // ==========================================
-  // LÓGICA DE DATOS ARREGLADA (Búsqueda por Nombre)
+  // LÓGICA DE DATOS (Búsqueda por Nombre)
   // ==========================================
   
   // 1. Filtramos todos los productos de categoría suscripciones
@@ -36,13 +36,18 @@ export default function Suscripciones() {
     p.nombre && (p.nombre.toLowerCase().includes('terruño') || p.nombre.toLowerCase().includes('terruno'))
   );
 
+  // 👉 NUEVA LÓGICA: Salto directo al Checkout VIP
   const handleAgregarSuscripcion = (productoDB) => {
     if (!productoDB) return;
-    const productoParaCarrito = {
+    
+    const planElegido = {
       ...productoDB,
-      label: 'suscripción'
+      label: 'suscripción',
+      cantidad: 1 // Forzamos la cantidad a 1 por ser suscripción
     };
-    addToCart(productoParaCarrito, 1);
+
+    // Navegamos pasando los datos en el estado de la ruta (la "mochila")
+    navigate('/checkout-suscripciones', { state: { planElegido } });
   };
 
   const faqs = [
@@ -268,7 +273,7 @@ export default function Suscripciones() {
           </div>
         </div>
       </section>
-            <Footer />
+      <Footer />
     </div>
   );
 }
