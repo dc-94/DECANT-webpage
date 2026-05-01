@@ -69,7 +69,7 @@ export default function TrackingPedido() {
     );
   }
 
-  const estados = ['Pendiente', 'En Preparación', 'Enviado', 'Entregado'];
+  const estados = ['Pendiente', 'En Preparación', 'En Camino', 'Entregado'];
   const estadoActualIndex = estados.indexOf(pedido.estado || 'Pendiente');
 
   return (
