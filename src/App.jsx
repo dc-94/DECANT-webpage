@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'; // 👉 Importamos lazy y Suspense
+import { lazy, Suspense } from 'react'; // Importamos lazy y Suspense
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 
@@ -6,13 +6,15 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { CatalogProvider } from './context/CatalogContext';
 import { CartProvider } from './context/CartContext';
+// 👉 NUEVO: Importamos el motor lógico de los Socios VIP
+import { SocioProvider } from './context/SocioContext'; 
 
 // COMPONENTES GLOBALES LIVIANOS
 import Loader from './components/public/Loader';
 import AgeGate from './components/public/AgeGate';
 import ScrollToTop from './components/public/ScrollToTop';
 import ProtectedRoute from './components/admin/ProtectedRoute';
-import ErrorBoundary from './components/layout/ErrorBoundary'; // 👉 Lo crearemos ahora
+import ErrorBoundary from './components/layout/ErrorBoundary'; // Blindaje total contra crashes
 
 // =========================================================
 // CARGA PEREZOSA (Lazy Loading) 
@@ -46,58 +48,61 @@ const AdminAjustes = lazy(() => import('./pages/AdminAjustes'));
 function App() {
   return (
     <HelmetProvider>
-      <ErrorBoundary> {/* 👉 Blindaje total contra crashes */}
+      <ErrorBoundary> {/* Blindaje total contra crashes */}
         <AuthProvider>
           <CatalogProvider>
             <CartProvider>
-              <style>{`
-                body.lock-loader, body.lock-age { overflow: hidden !important; }
-              `}</style>
-              
-              <Router>
-                <ScrollToTop />
+              {/* 👉 NUEVO: Envolvemos la App con el contexto de Socios */}
+              <SocioProvider> 
+                <style>{`
+                  body.lock-loader, body.lock-age { overflow: hidden !important; }
+                `}</style>
                 
-                {/* Estos componentes ya tienen sus propios estados de visibilidad */}
-                <Loader />
-                <AgeGate />
+                <Router>
+                  <ScrollToTop />
+                  
+                  {/* Estos componentes ya tienen sus propios estados de visibilidad */}
+                  <Loader />
+                  <AgeGate />
 
-                {/* 👉 Suspense envuelve las rutas para mostrar algo mientras se descarga el código */}
-                <Suspense fallback={
-                  <div className="h-screen w-full flex items-center justify-center bg-extra-black">
-                    <img src="/assets/brand/logo-white-T.png" className="h-10 animate-pulse opacity-50" alt="Decant" />
-                  </div>
-                }>
-                  <Routes>
-                    {/* RUTAS PÚBLICAS */}
-                    <Route path="/" element={<Home />} />
-                    <Route path="/ayuda" element={<Ayuda />} />
-                    <Route path="/manifiesto" element={<Manifiesto />} />
-                    <Route path="/shop" element={<Shop />} />
-                    <Route path="/shop/:categoria" element={<Shop />} />
-                    <Route path="/shop/:categoria/:subcategoria" element={<Shop />} />
-                    <Route path="/shop/:categoria/:subcategoria/:cepa" element={<Shop />} />
-                    <Route path="/producto/:id" element={<ProductDetail />} />
-                    <Route path="/checkout" element={<Checkout />} />
-                    <Route path="/gracias" element={<Gracias />} />
-                    <Route path="/pedido/:id" element={<Tracking />} />
-                    <Route path="/suscripciones" element={<Suscripciones />} />
-                    <Route path="/checkout-suscripciones" element={<CheckoutSuscripciones />} />
-                    <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
-                    <Route path="/login" element={<Login />} />
+                  {/* Suspense envuelve las rutas para mostrar algo mientras se descarga el código */}
+                  <Suspense fallback={
+                    <div className="h-screen w-full flex items-center justify-center bg-extra-black">
+                      <img src="/assets/brand/logo-white-T.png" className="h-10 animate-pulse opacity-50" alt="Decant" />
+                    </div>
+                  }>
+                    <Routes>
+                      {/* RUTAS PÚBLICAS */}
+                      <Route path="/" element={<Home />} />
+                      <Route path="/ayuda" element={<Ayuda />} />
+                      <Route path="/manifiesto" element={<Manifiesto />} />
+                      <Route path="/shop" element={<Shop />} />
+                      <Route path="/shop/:categoria" element={<Shop />} />
+                      <Route path="/shop/:categoria/:subcategoria" element={<Shop />} />
+                      <Route path="/shop/:categoria/:subcategoria/:cepa" element={<Shop />} />
+                      <Route path="/producto/:id" element={<ProductDetail />} />
+                      <Route path="/checkout" element={<Checkout />} />
+                      <Route path="/gracias" element={<Gracias />} />
+                      <Route path="/pedido/:id" element={<Tracking />} />
+                      <Route path="/suscripciones" element={<Suscripciones />} />
+                      <Route path="/checkout-suscripciones" element={<CheckoutSuscripciones />} />
+                      <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
+                      <Route path="/login" element={<Login />} />
 
-                    {/* RUTAS PRIVADAS */}
-                    <Route path="/admin_selector" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
-                    <Route path="/admin/dashboard" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
-                    <Route path="/locked_storefront" element={<ProtectedRoute><LockedStorefront /></ProtectedRoute>} />
-                    <Route path="/locked_cellar" element={<ProtectedRoute><LockedCellar /></ProtectedRoute>} />
-                    <Route path="/locked_cellar/inventario" element={<ProtectedRoute><AdminInventario /></ProtectedRoute>} />
-                    <Route path="/locked_cellar/ventas" element={<ProtectedRoute><AdminVentas /></ProtectedRoute>} />
-                    <Route path="/locked_cellar/clientes" element={<ProtectedRoute><AdminClientes /></ProtectedRoute>} />
-                    <Route path="/locked_cellar/ajustes" element={<ProtectedRoute><AdminAjustes /></ProtectedRoute>} />
-                    <Route path="/locked_cellar/facturacion" element={<ProtectedRoute><AdminFacturacion /></ProtectedRoute>} />
-                  </Routes>
-                </Suspense>
-              </Router>
+                      {/* RUTAS PRIVADAS */}
+                      <Route path="/admin_selector" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
+                      <Route path="/admin/dashboard" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
+                      <Route path="/locked_storefront" element={<ProtectedRoute><LockedStorefront /></ProtectedRoute>} />
+                      <Route path="/locked_cellar" element={<ProtectedRoute><LockedCellar /></ProtectedRoute>} />
+                      <Route path="/locked_cellar/inventario" element={<ProtectedRoute><AdminInventario /></ProtectedRoute>} />
+                      <Route path="/locked_cellar/ventas" element={<ProtectedRoute><AdminVentas /></ProtectedRoute>} />
+                      <Route path="/locked_cellar/clientes" element={<ProtectedRoute><AdminClientes /></ProtectedRoute>} />
+                      <Route path="/locked_cellar/ajustes" element={<ProtectedRoute><AdminAjustes /></ProtectedRoute>} />
+                      <Route path="/locked_cellar/facturacion" element={<ProtectedRoute><AdminFacturacion /></ProtectedRoute>} />
+                    </Routes>
+                  </Suspense>
+                </Router>
+              </SocioProvider>
             </CartProvider>
           </CatalogProvider>
         </AuthProvider>

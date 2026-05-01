@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'; // 👉 Importamos onSnapshot
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';
 
@@ -18,33 +18,47 @@ export default function TrackingPedido() {
   const [whatsappEmpresa, setWhatsappEmpresa] = useState('');
 
   useEffect(() => {
-    const fetchPedidoYDatos = async () => {
+    // 1. Buscamos el WhatsApp de la empresa (esto sigue siendo una lectura única porque casi no cambia)
+    const fetchAjustes = async () => {
       try {
-        const docRef = doc(db, 'pedidos', id);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setPedido({ id: docSnap.id, ...docSnap.data() });
-        } else {
-          setError(true);
-        }
-
-        // Buscar el WhatsApp de la empresa
         const storefrontSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
         if (storefrontSnap.exists() && storefrontSnap.data().datosEmpresa?.whatsapp) {
           setWhatsappEmpresa(storefrontSnap.data().datosEmpresa.whatsapp);
         }
-
       } catch (err) {
-        console.error("Error buscando pedido:", err);
-        setError(true);
-      } finally {
-        setCargando(false);
+        console.error("Error buscando ajustes:", err);
       }
     };
+    fetchAjustes();
 
-    fetchPedidoYDatos();
+    // 👉 2. IMPLEMENTACIÓN DE TIEMPO REAL: onSnapshot
+    const docRef = doc(db, 'pedidos', id);
+    
+    // onSnapshot abre la conexión y "escucha" los cambios constantemente
+    const unsubscribe = onSnapshot(docRef, 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setPedido({ id: docSnap.id, ...docSnap.data() });
+          setError(false); // Por si hubo un error temporal, lo limpiamos
+        } else {
+          // Si el admin elimina el pedido mientras el usuario lo mira, se mostrará la pantalla de error
+          setError(true); 
+          setPedido(null);
+        }
+        setCargando(false);
+      },
+      (err) => {
+        console.error("Error en el Listener del pedido:", err);
+        setError(true);
+        setCargando(false);
+      }
+    );
+
     window.scrollTo(0, 0);
+
+    // 👉 IMPORTANTE: Función de limpieza. Se ejecuta al salir de la página
+    return () => unsubscribe();
+    
   }, [id]);
 
   if (cargando) {
@@ -69,8 +83,12 @@ export default function TrackingPedido() {
     );
   }
 
-  const estados = ['Pendiente', 'En Preparación', 'En Camino', 'Entregado'];
-  const estadoActualIndex = estados.indexOf(pedido.estado || 'Pendiente');
+  // 👉 CORRECCIÓN DE UX: Vinculamos la barra de progreso al 'estadoLogistica'
+  // Antes estaba vinculado a 'estado' (Pendiente/Pagado/Cancelado)
+  const estadosLogistica = ['Pendiente', 'En Preparación', 'En Camino', 'Entregado'];
+  // Buscamos si existe estadoLogistica, sino le asignamos 'Pendiente' por defecto
+  const estadoLogisticaActual = pedido.estadoLogistica || 'Pendiente';
+  const estadoActualIndex = estadosLogistica.indexOf(estadoLogisticaActual);
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] flex flex-col">
@@ -96,10 +114,10 @@ export default function TrackingPedido() {
             <div className="absolute top-1/2 left-0 w-full h-1 bg-[#F0EBE1] -translate-y-1/2 z-0"></div>
             <div 
               className="absolute top-1/2 left-0 h-1 bg-brand-orange -translate-y-1/2 z-0 transition-all duration-1000 ease-out"
-              style={{ width: `${(estadoActualIndex / (estados.length - 1)) * 100}%` }}
+              style={{ width: `${(Math.max(0, estadoActualIndex) / (estadosLogistica.length - 1)) * 100}%` }}
             ></div>
 
-            {estados.map((estado, index) => {
+            {estadosLogistica.map((estado, index) => {
               const completado = index <= estadoActualIndex;
               const actual = index === estadoActualIndex;
               return (
@@ -134,6 +152,7 @@ export default function TrackingPedido() {
                 </>
               )}
               {estadoActualIndex === 3 && "¡Tu pedido ha sido entregado! Que disfrutes tu selección."}
+              {estadoActualIndex === -1 && "El estado de tu orden está siendo actualizado. Pronto tendrás novedades."}
             </p>
 
             {/* BOTÓN WHATSAPP DINÁMICO */}

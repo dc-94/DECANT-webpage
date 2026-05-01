@@ -138,18 +138,40 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
     // EJECUTAMOS TODA LA ESCRITURA EN FIRESTORE A LA VEZ
     await batch.commit();
 
-    // F. ENVIAR EMAIL DE BREVO
+ // F. ENVIAR EMAIL DE BREVO
     try {
-      await fetch("https://api.brevo.com/v3/smtp/email", {
+      const responseBrevo = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
-        headers: { "accept": "application/json", "api-key": process.env.BREVO_API_KEY, "content-type": "application/json" },
+        headers: { 
+          "accept": "application/json", 
+          "api-key": process.env.BREVO_API_KEY, 
+          "content-type": "application/json" 
+        },
         body: JSON.stringify({
-          to: [{ email: emailLower, name: `${formData.nombre} ${formData.apellido}` }],
-          templateId: 1,
-          params: { nombre: formData.nombre, orden: numeroOrdenCorto, link_tracking: `${ALLOWED_ORIGINS[1]}/pedido/${pedidoIdReal}` }
+          to: [{ 
+            email: emailLower, 
+            name: `${formData.nombre} ${formData.apellido}`.trim() 
+          }],
+          templateId: 8, // 👉 Aquí actualizamos al nuevo ID de tu plantilla
+          params: { 
+            nombre: formData.nombre || 'Cliente', 
+            orden: numeroOrdenCorto, 
+            link_tracking: `${ALLOWED_ORIGINS[1]}/pedido/${pedidoIdReal}` 
+          }
         })
       });
-    } catch (e) { logger.error("Error al enviar email Brevo:", e.message); }
+
+      // Validamos si Brevo aceptó la petición correctamente
+      if (!responseBrevo.ok) {
+        const errorText = await responseBrevo.text();
+        logger.error("Error devuelto por Brevo al procesar Checkout:", errorText);
+      } else {
+        logger.info(`Email de confirmación enviado con éxito al pedido ${numeroOrdenCorto}`);
+      }
+      
+    } catch (e) { 
+      logger.error("Error de conexión al enviar email Brevo:", e.message); 
+    }
 
     // Devolvemos los datos reales al cliente para que muestre el resumen
     return res.status(200).send({

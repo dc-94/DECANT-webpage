@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -18,10 +18,27 @@ const BREVO_TEMPLATES = {
   recordatorio: 8 
 };
 
-export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
+// 👉 Recibimos onEliminar como propiedad
+export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar }) {
   const [actualizando, setActualizando] = useState(false);
   const [enviandoRecordatorio, setEnviandoRecordatorio] = useState(false);
   const [notificarCliente, setNotificarCliente] = useState(true);
+
+  const [estadoLocal, setEstadoLocal] = useState({
+    estado: '',
+    estadoLogistica: '',
+    metodoPago: ''
+  });
+
+  useEffect(() => {
+    if (pedido) {
+      setEstadoLocal({
+        estado: pedido.estado || 'Pendiente',
+        estadoLogistica: pedido.estadoLogistica || 'Pendiente',
+        metodoPago: pedido.metodoPago || ''
+      });
+    }
+  }, [pedido]);
 
   if (!isOpen || !pedido) return null;
 
@@ -29,7 +46,9 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
   const esRetiro = !pedido.formData?.direccion; 
 
   const handleActualizacion = async (campo, nuevoValor) => {
+    setEstadoLocal(prev => ({ ...prev, [campo]: nuevoValor }));
     setActualizando(true);
+
     try {
       const pedidoRef = doc(db, 'pedidos', pedido.id);
       await updateDoc(pedidoRef, {
@@ -57,9 +76,9 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
     } catch (error) {
       console.error("Error actualizando:", error);
       alert("Hubo un problema guardando el cambio.");
+      setEstadoLocal(prev => ({ ...prev, [campo]: pedido[campo] }));
     } finally {
       setActualizando(false);
-      pedido[campo] = nuevoValor; 
     }
   };
 
@@ -92,7 +111,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
     ? `${pedido.formData.direccion} ${pedido.formData.numero || ''}${pedido.formData.piso ? `, Piso ${pedido.formData.piso}` : ''}, ${pedido.formData.ciudad || ''} (${pedido.formData.cp || ''})`
     : 'Retiro en Cava / Sin domicilio';
 
-  const subtotalProductos = pedido.cart?.reduce((acc, item) => acc + ((item.precioFinal || item.precio) * item.cantidad), 0) || pedido.totalFinal;
+  const subtotalProductos = pedido.cart?.reduce((acc, item) => acc + ((item.precioFinal || item.precio || item.precioUnitario || 0) * item.cantidad), 0) || pedido.totalFinal;
+  
   let montoDescuento = 0;
   let motivoDescuento = [];
   
@@ -106,7 +126,6 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
       
       <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 font-poppins">
         
-        {/* HEADER COMPACTADO */}
         <header className="px-6 py-5 border-b bg-slate-50 flex flex-col gap-4 shrink-0">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
@@ -158,7 +177,6 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
 
         <div className="flex-1 overflow-y-auto p-5 md:p-6 space-y-6">
           
-          {/* PANEL DE CONTROL COMPACTADO */}
           <section className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
             <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
               <h4 className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Logística y Pagos</h4>
@@ -173,8 +191,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
                 <div>
                   <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block">Estado de Pago</label>
                   <select 
-                    className={`w-full p-2 border rounded-lg text-[11px] font-bold outline-none cursor-pointer ${actualizando ? 'opacity-50' : ''} ${pedido.estado === 'Pagado' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200'}`}
-                    value={pedido.estado || 'Pendiente'}
+                    className={`w-full p-2 border rounded-lg text-[11px] font-bold outline-none cursor-pointer ${actualizando ? 'opacity-50' : ''} ${estadoLocal.estado === 'Pagado' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200'}`}
+                    value={estadoLocal.estado}
                     onChange={(e) => handleActualizacion('estado', e.target.value)}
                     disabled={actualizando}
                   >
@@ -184,7 +202,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
                   </select>
                 </div>
 
-                {pedido.estado !== 'Pagado' && (
+                {estadoLocal.estado !== 'Pagado' && (
                   <button 
                     onClick={handleEnviarRecordatorio}
                     disabled={enviandoRecordatorio}
@@ -195,12 +213,12 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
                   </button>
                 )}
 
-                {pedido.estado === 'Pagado' && (
+                {estadoLocal.estado === 'Pagado' && (
                   <div className="animate-in fade-in slide-in-from-top-1 duration-300">
                     <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block">Vía de Ingreso</label>
                     <select 
                       className={`w-full p-2 border rounded-lg text-[11px] font-bold outline-none cursor-pointer bg-white border-slate-200 focus:border-brand-orange`}
-                      value={pedido.metodoPago || ''}
+                      value={estadoLocal.metodoPago}
                       onChange={(e) => handleActualizacion('metodoPago', e.target.value)}
                       disabled={actualizando}
                     >
@@ -218,8 +236,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
                   Estado de Envío {esRetiro ? '(Retiro)' : '(Delivery)'}
                 </label>
                 <select 
-                  className={`w-full p-2 border rounded-lg text-[11px] font-bold outline-none cursor-pointer ${actualizando ? 'opacity-50' : ''} ${pedido.estadoLogistica === 'Entregado' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200'}`}
-                  value={pedido.estadoLogistica || 'Pendiente'}
+                  className={`w-full p-2 border rounded-lg text-[11px] font-bold outline-none cursor-pointer ${actualizando ? 'opacity-50' : ''} ${estadoLocal.estadoLogistica === 'Entregado' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200'}`}
+                  value={estadoLocal.estadoLogistica}
                   onChange={(e) => handleActualizacion('estadoLogistica', e.target.value)}
                   disabled={actualizando}
                 >
@@ -235,12 +253,11 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
               </div>
             </div>
           </section>
-            {/* LISTA DE PRODUCTOS COMPACTADA */}
+
           <section>
             <h4 className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Artículos de la Orden</h4>
             <div className="space-y-1.5">
               
-              {/* 1. Renderiza el carrito de productos físicos si existe */}
               {pedido.cart?.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                   <div className="flex items-center gap-3">
@@ -257,7 +274,6 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
                 </div>
               ))}
 
-              {/* 2. Renderiza la Suscripción como un artículo si no hay carrito pero hay plan */}
               {pedido.plan && (!pedido.cart || pedido.cart.length === 0) && (
                 <div className="flex justify-between items-center p-3 bg-brand-orange/5 border border-brand-orange/20 rounded-lg shadow-sm">
                   <div className="flex items-center gap-3">
@@ -277,10 +293,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
 
             </div>
           </section>
-          
         </div>
 
-        {/* FOOTER COMPACTADO */}
         <section className="px-6 py-4 border-t bg-slate-900 text-white rounded-t-2xl mt-auto shrink-0">
           
           <div className="flex flex-col gap-1.5 mb-3 pb-3 border-b border-white/10">
@@ -309,7 +323,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
             <div>
               <span className="text-[8px] font-bold uppercase tracking-widest opacity-60 block mb-1">Vía de Ingreso</span>
               <span className="text-[9px] font-black text-brand-orange uppercase bg-white/10 px-2 py-1 rounded tracking-widest">
-                {pedido.metodoPago || pedido.formData?.pago || 'No especificada'}
+                {estadoLocal.metodoPago || pedido.formData?.pago || 'No especificada'}
               </span>
             </div>
             <div className="text-right">
@@ -317,6 +331,19 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido }) {
               <span className="text-3xl font-black tracking-tighter leading-none">${pedido.totalFinal?.toLocaleString()}</span>
             </div>
           </div>
+
+          {/* 👉 NUEVA SECCIÓN DE PELIGRO: Eliminación de la orden */}
+          {onEliminar && (
+            <div className="mt-5 pt-4 border-t border-red-500/20 flex justify-center">
+              <button 
+                onClick={onEliminar}
+                className="text-[9px] font-black uppercase tracking-widest text-red-500 hover:text-red-400 hover:bg-red-500/10 px-4 py-2 rounded transition-colors outline-none flex items-center gap-2"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Eliminar Venta Permanentemente
+              </button>
+            </div>
+          )}
 
         </section>
 

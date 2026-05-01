@@ -5,9 +5,18 @@ import SearchOverlay from './SearchOverlay';
 import { useCart } from '../../context/CartContext';
 import CartDrawer from '../cart/CartDrawer';
 
+// 👉 Nuevas importaciones para el sistema de Socios VIP
+import { useSocio } from '../../context/SocioContext';
+import ModalSocio from '../public/ModalSocio';
+
 export default function MainNavbar() {
   const { menuTree, cargando, productos } = useCatalog();
-  const { totalItems, isCartOpen, setIsCartOpen } = useCart();
+  const { totalItems, isCartOpen, setIsCartOpen, justAdded } = useCart();
+  
+  // 👉 Traemos la lógica de socios
+  const { socio, logoutSocio } = useSocio();
+  const [modalSocioOpen, setModalSocioOpen] = useState(false);
+
   const location = useLocation();
   
   const [scrolled, setScrolled] = useState(false);
@@ -113,16 +122,46 @@ export default function MainNavbar() {
           </div>
 
           <div className="flex-1 flex justify-end gap-5 md:gap-6 items-center text-brand-white">
+            
+            {/* 👉 BOTONES DE SISTEMA VIP (DESKTOP) */}
+            {socio ? (
+              <div className="hidden md:flex items-center gap-4">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange border border-brand-orange/30 px-3 py-1 rounded">
+                  {socio.badge}
+                </span>
+                <button 
+                  onClick={logoutSocio} 
+                  className="text-[10px] font-black uppercase tracking-[0.2em] hover:text-brand-orange transition-colors outline-none"
+                  title="Cerrar sesión"
+                >
+                  Salir
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setModalSocioOpen(true)}
+                className="hidden md:block text-[10px] font-black uppercase tracking-[0.2em] hover:text-brand-orange transition-colors outline-none"
+              >
+                Soy Socio
+              </button>
+            )}
+
             <button onClick={() => setSearchOpen(true)} className="hidden md:block hover:text-brand-orange transition-colors outline-none">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </button>
-            <button onClick={() => setIsCartOpen(true)} className="hover:text-brand-orange transition-colors relative outline-none">
+            <button 
+              onClick={() => setIsCartOpen(true)} 
+              className={`transition-all duration-300 relative outline-none transform hover:text-brand-orange
+                ${justAdded ? 'scale-125 text-brand-orange' : 'scale-100'}`}
+            >
               {totalItems > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-brand-orange text-brand-white text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                <span className={`absolute -top-1.5 -right-2 bg-brand-orange text-brand-white text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center transition-transform duration-300 ${justAdded ? 'scale-110 animate-bounce' : ''}`}>
                   {totalItems}
                 </span>
               )}
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                <svg className={`w-5 h-5 transition-transform ${justAdded ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="square" strokeWidth="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
             </button>
           </div>
         </div>
@@ -313,6 +352,13 @@ export default function MainNavbar() {
             <div className="mt-12 flex flex-col gap-6 pt-10 border-t border-dark-blue/10 w-full max-w-[200px]">
               <Link to="/suscripciones" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Suscripciones</Link>
               <Link to="/manifiesto" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Manifiesto</Link>
+              
+              {/* 👉 BOTONES DE SISTEMA VIP (MOBILE) */}
+              {socio ? (
+                 <button onClick={() => { logoutSocio(); setMobileMenuOpen(false); }} className="text-2xl font-playfair italic text-brand-orange drop-shadow-md text-left outline-none">Salir ({socio.badge})</button>
+              ) : (
+                 <button onClick={() => { setModalSocioOpen(true); setMobileMenuOpen(false); }} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md text-left outline-none">Soy Socio</button>
+              )}
             </div>
           </div>
 
@@ -339,6 +385,8 @@ export default function MainNavbar() {
 
       <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      {/* 👉 RENDERIZADO DEL MODAL VIP */}
+      <ModalSocio isOpen={modalSocioOpen} onClose={() => setModalSocioOpen(false)} />
     </>
   );
 }

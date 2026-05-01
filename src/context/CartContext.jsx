@@ -16,6 +16,8 @@ export const useCart = () => {
 export const CartProvider = ({ children }) => {
   // === NUEVO ESTADO GLOBAL PARA EL DRAWER ===
   const [isCartOpen, setIsCartOpen] = useState(false);
+  // Estado para el feedback visual en el Navbar
+  const [justAdded, setJustAdded] = useState(false);
 
   // Inicializamos el estado leyendo el localStorage por si hay un carrito guardado
   const [cart, setCart] = useState(() => {
@@ -59,9 +61,9 @@ export const CartProvider = ({ children }) => {
       return [...prevCart, { ...producto, cantidad }];
     });
 
-    // === LA MAGIA OCURRE AQUÍ ===
-    // Abrimos el Drawer automáticamente cada vez que se agrega un producto
-    setIsCartOpen(true);
+    // Activar feedback visual temporal sin abrir el drawer
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1500); 
   };
 
   // Cambiar la cantidad de un producto específico (desde la vista del carrito)
@@ -114,7 +116,8 @@ export const CartProvider = ({ children }) => {
     totalPrecio,
     // === EXPORTAMOS EL ESTADO DEL DRAWER ===
     isCartOpen,
-    setIsCartOpen
+    setIsCartOpen,
+    justAdded // Exportamos el nuevo estado para el feedback
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

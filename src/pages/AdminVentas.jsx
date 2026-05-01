@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 import { useCatalog } from '../context/CatalogContext';
 import AdminNavbar from '../components/layout/AdminNavbar';
 
@@ -42,6 +42,64 @@ export default function AdminVentas() {
       );
     }), [pedidos, busqueda]
   );
+
+  // ==========================================
+  // NUEVAS FUNCIONES DE GESTIÓN (TECH LEAD)
+  // ==========================================
+
+  const handleEliminarVenta = async (pedidoId) => {
+    // CX/UX: Doble confirmación defensiva para operaciones destructivas
+    const primeraConfirmacion = window.confirm("⚠️ ATENCIÓN: ¿Estás seguro de querer eliminar esta venta?");
+    if (!primeraConfirmacion) return;
+
+    const segundaConfirmacion = window.confirm("🚨 Esta acción es IRREVERSIBLE y no restaurará el stock automáticamente. ¿Borrar definitivamente?");
+    if (!segundaConfirmacion) return;
+
+    try {
+      await deleteDoc(doc(db, 'pedidos', pedidoId));
+      setIsDetalleOpen(false); // Cerramos el drawer si estaba abierto
+      setPedidoSeleccionado(null);
+      alert("Venta eliminada correctamente de la base de datos.");
+    } catch (error) {
+      console.error("Error al eliminar la venta:", error);
+      alert("Hubo un error de conexión al intentar eliminar la venta.");
+    }
+  };
+
+  const handleReenviarTracking = async (pedido) => {
+    if (!window.confirm(`¿Reenviar el email de seguimiento a ${pedido.clienteEmail}?`)) return;
+
+    // Asumimos que la URL está en las variables de entorno, o usamos el fallback
+    const functionUrl = import.meta.env.VITE_FUNCTIONS_URL || 'https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app';
+    const baseUrl = window.location.origin;
+
+    try {
+      const res = await fetch(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: pedido.clienteEmail,
+          toName: `${pedido.formData?.nombre || ''} ${pedido.formData?.apellido || ''}`.trim() || 'Socio',
+          templateId: 1, // 👉 Verifica que el ID 1 sea tu plantilla de "Pedido Confirmado / Tracking" en Brevo
+          params: { 
+            nombre: pedido.formData?.nombre || '', 
+            orden: pedido.id.slice(0, 5).toUpperCase(), 
+            link_tracking: `${baseUrl}/pedido/${pedido.id}` // Link exacto a la vista de tracking
+          }
+        })
+      });
+
+      if (res.ok) {
+        alert("Link de seguimiento reenviado exitosamente.");
+      } else {
+        const errorData = await res.json();
+        alert(`Error devuelto por el servidor: ${errorData.error || 'Desconocido'}`);
+      }
+    } catch (error) {
+      console.error("Error al reenviar tracking:", error);
+      alert("Error de red al intentar enviar el correo.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F4F7FA] font-poppins text-slate-900 flex flex-col relative">
@@ -108,7 +166,6 @@ export default function AdminVentas() {
                       </span>
                     </td>
                     <td className="p-6">
-                      {/* 👉 AGREGADO: Nombre y Apellido */}
                       <p className="text-sm font-bold text-slate-900">
                         {p.formData?.nombre} {p.formData?.apellido}
                       </p>
@@ -118,12 +175,22 @@ export default function AdminVentas() {
                     </td>
                     <td className="p-6 font-black text-sm">${p.totalFinal?.toLocaleString()}</td>
                     <td className="p-6 text-right">
-                      <button 
-                        onClick={() => { setPedidoSeleccionado(p); setIsDetalleOpen(true); }}
-                        className="text-brand-orange font-black text-[10px] uppercase hover:underline"
-                      >
-                        Detalle →
-                      </button>
+                      {/* Botones directos en la tabla para acceso rápido */}
+                      <div className="flex justify-end gap-3 items-center">
+                        <button 
+                          onClick={() => handleReenviarTracking(p)}
+                          className="text-light-blue hover:text-brand-orange font-black text-[9px] uppercase tracking-widest transition-colors outline-none"
+                          title="Reenviar Link de Tracking"
+                        >
+                          ✉️ Tracking
+                        </button>
+                        <button 
+                          onClick={() => { setPedidoSeleccionado(p); setIsDetalleOpen(true); }}
+                          className="text-brand-orange font-black text-[10px] uppercase hover:underline outline-none"
+                        >
+                          Detalle →
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -139,11 +206,11 @@ export default function AdminVentas() {
           productos={productos} 
         />
 
-        {/* Le pasamos todos los pedidos para que el drawer pueda buscar el historial del cliente */}
         <DrawerDetalleVenta 
           isOpen={isDetalleOpen} 
           onClose={() => setIsDetalleOpen(false)} 
           pedido={pedidoSeleccionado} 
+          onEliminar={() => handleEliminarVenta(pedidoSeleccionado.id)} // Pasamos la función al Drawer por si querés agregar el botón adentro después
         />
       </main>
     </div>

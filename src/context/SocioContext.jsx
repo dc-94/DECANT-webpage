@@ -2,85 +2,83 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
+// 1. Creamos el contexto
 const SocioContext = createContext();
 
-export const useSocio = () => {
-  const context = useContext(SocioContext);
-  if (!context) {
-    throw new Error('useSocio debe ser usado dentro de un SocioProvider');
-  }
-  return context;
-};
+// Hook personalizado para usarlo fácilmente
+export const useSocio = () => useContext(SocioContext);
 
+// 2. El proveedor que envolverá nuestra App
 export const SocioProvider = ({ children }) => {
-  const [socio, setSocio] = useState(null); // Guardará { email, pin, badge, porcentaje }
+  // Leemos la sesión guardada previamente (si existe)
+  const [socio, setSocio] = useState(() => {
+    const saved = sessionStorage.getItem('decant_socio');
+    return saved ? JSON.parse(saved) : null;
+  });
+  
   const [validando, setValidando] = useState(false);
 
-  // Al cargar la app, revisamos si el socio ya se había logueado en esta pestaña
+  // Guardamos la sesión automáticamente cuando el estado cambia
   useEffect(() => {
-    const savedSocio = sessionStorage.getItem('decant_socio');
-    if (savedSocio) {
-      try {
-        setSocio(JSON.parse(savedSocio));
-      } catch (e) {
-        sessionStorage.removeItem('decant_socio');
-      }
+    if (socio) {
+      sessionStorage.setItem('decant_socio', JSON.stringify(socio));
+    } else {
+      sessionStorage.removeItem('decant_socio');
     }
-  }, []);
+  }, [socio]);
 
-  // Función para validar contra la base de datos
-  const validarPin = async (email, pin) => {
-    if (!email || !pin) return { success: false, error: 'Completá todos los datos.' };
-    
+  // Función principal de Login
+  const loginSocio = async (email, pin) => {
     setValidando(true);
     try {
       const emailLower = email.toLowerCase().trim();
-      const clientRef = doc(db, 'clientes', emailLower);
-      const clientSnap = await getDoc(clientRef);
-      
-      if (clientSnap.exists()) {
-        const data = clientSnap.data();
-        // Verificamos que el PIN coincida y tenga un badge de socio
-        if (data.numeroCliente === pin && data.badge) {
-          
-          let porcentaje = 0;
-          if (data.badge === 'Descorche') porcentaje = 0.15;
-          if (data.badge === 'Terruño' || data.badge === 'Terruno') porcentaje = 0.20;
+      // Buscamos directamente el documento usando el email como ID
+      const docRef = doc(db, 'clientes', emailLower);
+      const docSnap = await getDoc(docRef);
 
-          if (porcentaje > 0) {
-            const socioData = { email: emailLower, pin, badge: data.badge, porcentaje };
-            setSocio(socioData);
-            sessionStorage.setItem('decant_socio', JSON.stringify(socioData));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        
+        // Verificamos el PIN (contraseña)
+        if (data.numeroCliente === pin) {
+          
+          // Verificamos la membresía
+          if (data.badge === 'Descorche' || data.badge === 'Terruño') {
+            const porcentaje = data.badge === 'Terruño' ? 0.20 : 0.15;
+            
+            // Guardamos al socio en el estado global
+            setSocio({ 
+              email: emailLower, 
+              pin, 
+              badge: data.badge, 
+              porcentaje,
+              nombre: data.nombre 
+            });
             return { success: true };
           } else {
-            return { success: false, error: 'Tu membresía no posee descuentos activos.' };
+            return { success: false, error: 'No tienes una membresía VIP activa en este momento.' };
           }
         } else {
-          return { success: false, error: 'El PIN no coincide o no es válido.' };
+          return { success: false, error: 'El PIN ingresado es incorrecto.' };
         }
       } else {
-        return { success: false, error: 'No encontramos un socio registrado con este email.' };
+        return { success: false, error: 'No encontramos un registro con ese correo electrónico.' };
       }
     } catch (error) {
-      console.error("Error validando socio:", error);
-      return { success: false, error: 'Error al conectar de forma segura.' };
+      console.error("Error al validar:", error);
+      return { success: false, error: 'Error de conexión. Por favor, intenta nuevamente.' };
     } finally {
       setValidando(false);
     }
   };
 
-  // Función para cerrar sesión VIP
-  const cerrarSesionSocio = () => {
+  const logoutSocio = () => {
     setSocio(null);
-    sessionStorage.removeItem('decant_socio');
   };
 
-  const value = {
-    socio,
-    validando,
-    validarPin,
-    cerrarSesionSocio
-  };
-
-  return <SocioContext.Provider value={value}>{children}</SocioContext.Provider>;
+  return (
+    <SocioContext.Provider value={{ socio, loginSocio, logoutSocio, validando }}>
+      {children}
+    </SocioContext.Provider>
+  );
 };
