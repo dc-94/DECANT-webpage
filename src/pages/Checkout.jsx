@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import SEO from '../components/public/SEO';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { db } from '../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-import { 
-  doc, 
-  getDoc, 
-  collection, 
-} from 'firebase/firestore';
+// 👉 Importamos el motor VIP
+import { useSocio } from '../context/SocioContext';
 
 // Íconos
 const ChevronIcon = ({ className, isOpen }) => (<svg className={`${className} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>);
@@ -17,6 +15,9 @@ const ShieldIcon = ({ className }) => (<svg className={className} fill="none" st
 
 export default function Checkout() {
   const { cart, totalPrecio, clearCart } = useCart();
+  
+  // 👉 Traemos la sesión activa y la función de login del contexto
+  const { socio, loginSocio, validando } = useSocio(); 
   const navigate = useNavigate();
 
   const [activeStep, setActiveStep] = useState(1);
@@ -28,91 +29,155 @@ export default function Checkout() {
     envio: 'retiro', direccion: '', ciudad: '', cp: '',
     pago: 'transferencia'
   });
-
-  const [inputSocio, setInputSocio] = useState('');
-  const [datosSocio, setDatosSocio] = useState(null);
-  const [mensajeSocio, setMensajeSocio] = useState({ tipo: '', texto: '' });
-  const [validandoSocio, setValidandoSocio] = useState(false);
   
+  // Estados para el login manual en el checkout
+  const [inputSocio, setInputSocio] = useState('');
+  const [mensajeSocio, setMensajeSocio] = useState({ tipo: '', texto: '' });
+
   const [direccionEmpresa, setDireccionEmpresa] = useState('Nuestra Cava');
 
+  // ==========================================
+  // INICIALIZACIÓN DE DATOS (Manejando Socios y Locales)
+  // ==========================================
   useEffect(() => {
-    const savedData = localStorage.getItem('decant_customer_data');
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      setFormData(prev => ({ 
-        ...prev, 
-        nombre: parsed.nombre || '', 
-        apellido: parsed.apellido || '', 
-        email: parsed.email || '', 
-        telefono: parsed.telefono || '' 
-      }));
-    }
-
-    const fetchAjustes = async () => {
+    const inicializarDatos = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
         if (docSnap.exists() && docSnap.data().datosEmpresa?.direccion) {
           setDireccionEmpresa(docSnap.data().datosEmpresa.direccion);
         }
       } catch(e) { console.error(e); }
+
+      // Si es SOCIO VIP, traemos su perfil completo y bloqueamos el Paso 1
+      if (socio && socio.email) {
+        try {
+          const docSnap = await getDoc(doc(db, 'clientes', socio.email));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setFormData(prev => ({
+              ...prev,
+              nombre: data.nombre || prev.nombre,
+              apellido: data.apellido || prev.apellido,
+              email: data.email || socio.email,
+              telefono: data.telefono || prev.telefono,
+              direccion: data.direccionDefault || prev.direccion,
+              ciudad: data.ciudad || prev.ciudad,
+              cp: data.cp || prev.cp
+            }));
+            // Saltamos el paso 1 solo si recién entra, no si está volviendo atrás
+            if (activeStep === 1) setActiveStep(2); 
+          }
+        } catch (e) { console.error("Error obteniendo datos del socio", e); }
+      } 
+      else {
+        const savedData = localStorage.getItem('decant_customer_data');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          setFormData(prev => ({ 
+            ...prev, 
+            nombre: parsed.nombre || '', 
+            apellido: parsed.apellido || '', 
+            email: parsed.email || '', 
+            telefono: parsed.telefono || '' 
+          }));
+        }
+      }
     };
-    fetchAjustes();
-  }, []);
+
+    inicializarDatos();
+  }, [socio]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     if (e.target.name === 'email') {
-      setDatosSocio(null);
       setMensajeSocio({ tipo: '', texto: '' });
     }
   };
 
-  const handleValidarSocio = async () => {
+  // 👉 Validación del PIN directamente desde el Checkout
+  const handleValidarSocioCheckout = async () => {
     if (!formData.email) {
       setMensajeSocio({ tipo: 'error', texto: 'Completá tu email en el Paso 1 primero.' });
       return;
     }
     if (!inputSocio) return;
-    setValidandoSocio(true);
+    
     setMensajeSocio({ tipo: '', texto: '' });
-
-    try {
-      const emailLower = formData.email.toLowerCase().trim();
-      const clientRef = doc(db, 'clientes', emailLower);
-      const clientSnap = await getDoc(clientRef);
-      if (clientSnap.exists()) {
-        const data = clientSnap.data();
-        if (data.numeroCliente === inputSocio) {
-          if (data.badge === 'Descorche') setDatosSocio({ porcentaje: 0.15, badge: 'Descorche' });
-          else if (data.badge === 'Terruño') setDatosSocio({ porcentaje: 0.20, badge: 'Terruño' });
-          else setMensajeSocio({ tipo: 'error', texto: 'No posees una membresía activa.' });
-        } else setMensajeSocio({ tipo: 'error', texto: 'El PIN no coincide con tu email.' });
-      } else setMensajeSocio({ tipo: 'error', texto: 'No encontramos un socio con este email.' });
-    } catch (error) {
-      setMensajeSocio({ tipo: 'error', texto: 'Error al validar.' });
+    
+    // Usamos el motor lógico que ya creamos en SocioContext
+    const resultado = await loginSocio(formData.email, inputSocio);
+    
+    if (!resultado.success) {
+      setMensajeSocio({ tipo: 'error', texto: resultado.error });
+    } else {
+      setMensajeSocio({ tipo: 'success', texto: '¡Bienvenido! Beneficios aplicados a tu carrito.' });
     }
-    setValidandoSocio(false);
   };
 
-  const subtotal = totalPrecio;
-  const montoDescuentoVIP = datosSocio ? subtotal * datosSocio.porcentaje : 0;
-  const subtotalPostVIP = subtotal - montoDescuentoVIP;
-  const descuentoMontoTransferencia = formData.pago === 'transferencia' ? subtotalPostVIP * 0.05 : 0;
-  const totalFinal = subtotalPostVIP - descuentoMontoTransferencia;
+  // ==========================================
+  // RECÁLCULO DINÁMICO DEL CARRITO
+  // ==========================================
+  
+  // Si el usuario se loguea Estando ya en el checkout, recalculamos los precios al instante
+  // aplicando las reglas de NO acumulación de descuentos.
+  const effectiveCart = useMemo(() => {
+    return cart.map(item => {
+      const precioBase = item.precioBase || item.precioFinal;
+      let precioEfectivo = item.precioFinal;
+      let descuentoVIPAplicado = item.descuentoNombre?.includes('Socio') || false;
+
+      // Si es socio y este item no traía ya el descuento VIP desde el catálogo
+      if (socio && !descuentoVIPAplicado) {
+        const precioTeoricoSocio = Math.round(precioBase * (1 - socio.porcentaje));
+        // Solo le bajamos el precio si el descuento VIP es MEJOR que el precio de tienda actual
+        if (precioTeoricoSocio < item.precioFinal) {
+          precioEfectivo = precioTeoricoSocio;
+          descuentoVIPAplicado = true;
+        }
+      }
+
+      return {
+        ...item,
+        precioEfectivo,
+        descuentoVIPAplicado
+      };
+    });
+  }, [cart, socio]);
+
+  // Calculamos el ahorro y el subtotal basándonos en el carrito EFECTIVO recalculado
+  const ahorroSocio = useMemo(() => {
+    return effectiveCart.reduce((acc, item) => {
+      if (item.descuentoVIPAplicado && (item.precioBase > item.precioEfectivo)) {
+        return acc + ((item.precioBase - item.precioEfectivo) * item.cantidad);
+      }
+      return acc;
+    }, 0);
+  }, [effectiveCart]);
+
+  const subtotal = effectiveCart.reduce((acc, item) => acc + (item.precioEfectivo * item.cantidad), 0);
+  const descuentoMontoTransferencia = formData.pago === 'transferencia' ? subtotal * 0.05 : 0;
+  const totalFinal = subtotal - descuentoMontoTransferencia;
   const textoEnvio = formData.envio === 'retiro' ? 'Gratis' : 'A convenir';
 
+  // ==========================================
+  // PROCESAMIENTO AL BACKEND
+  // ==========================================
   const handleCheckout = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
 
     try {
-      // 1. Extraemos SOLO lo necesario del carrito (IDs y cantidades). 
-      // Si el usuario intentó hackear los precios en su navegador, no importa.
-      const cartReducido = cart.map(item => ({ id: item.id, cantidad: item.cantidad }));
+      // Mandamos el carrito con los precios efectivos
+      const cartReducido = effectiveCart.map(item => ({ 
+        id: item.id, 
+        cantidad: item.cantidad,
+        precioFinal: item.precioEfectivo // El backend debe saber qué cobramos
+      }));
 
-      // 2. Llamamos a nuestra Bóveda Segura en el Servidor
-      const response = await fetch('https://us-central1-web-decant.cloudfunctions.net/procesarCheckoutTienda', { // 👈 Reemplaza con la URL que te de Firebase al deployar
+      // Mandamos el PIN del socio de forma invisible para que el backend re-valide todo
+      const pinSeguro = socio ? socio.pin : '';
+
+      const response = await fetch('https://us-central1-web-decant.cloudfunctions.net/procesarCheckoutTienda', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,7 +185,7 @@ export default function Checkout() {
           cart: cartReducido,
           pago: formData.pago,
           envio: formData.envio,
-          inputSocio
+          inputSocio: pinSeguro 
         })
       });
 
@@ -130,19 +195,19 @@ export default function Checkout() {
         throw new Error(result.error || "Error desconocido en el servidor");
       }
 
-      // 3. LIMPIEZA Y NAVEGACIÓN
       const emailLower = formData.email.toLowerCase().trim();
       
-      localStorage.setItem('decant_customer_data', JSON.stringify({
-          nombre: formData.nombre, apellido: formData.apellido, email: emailLower, telefono: formData.telefono
-      }));
+      if (!socio) {
+        localStorage.setItem('decant_customer_data', JSON.stringify({
+            nombre: formData.nombre, apellido: formData.apellido, email: emailLower, telefono: formData.telefono
+        }));
+      }
       
-      // Guardamos en LocalStorage los valores REALES que devolvió el servidor (pisando cualquier hackeo)
       localStorage.setItem('decant_last_order', JSON.stringify({
           id: result.pedidoId,
           ordenDisplay: result.ordenDisplay,
           formData: formData,
-          totalFinal: result.totalFinalReal, // El precio que dictó el servidor
+          totalFinal: result.totalFinalReal, 
           clienteEmail: emailLower
       }));
 
@@ -159,6 +224,7 @@ export default function Checkout() {
   if (cart.length === 0) return <div className="min-h-screen bg-[#F7F5F0] flex items-center justify-center font-poppins text-xs font-black uppercase tracking-widest text-dark-blue">Tu copa está vacía</div>;
 
   const inputClases = "w-full bg-white border border-dark-blue/10 px-4 py-4 text-sm outline-none focus:border-brand-orange text-dark-blue placeholder-dark-blue/40 transition-all focus:shadow-sm";
+  const inputReadonlyClases = "w-full bg-slate-50 border border-dark-blue/5 px-4 py-4 text-sm text-dark-blue/60 cursor-not-allowed select-none outline-none";
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-dark-blue font-poppins selection:bg-brand-orange selection:text-white flex flex-col">
@@ -172,16 +238,25 @@ export default function Checkout() {
         </button>
         <div className={`overflow-hidden transition-all duration-300 ${mobileSummaryOpen ? 'max-h-[500px] border-t border-dark-blue/5 bg-[#F0EBE1]' : 'max-h-0'}`}>
           <div className="p-6 flex flex-col gap-4">
-             {cart.map((item) => (
+             {/* 👉 Usamos el effectiveCart para renderizar precios correctos */}
+             {effectiveCart.map((item) => (
                 <div key={item.id} className="flex justify-between items-center">
                   <span className="font-playfair text-sm font-bold text-dark-blue">{item.cantidad}x {item.nombre}</span>
-                  <span className="font-semibold text-dark-blue">${(item.precioFinal * item.cantidad).toLocaleString()}</span>
+                  <div className="flex items-center gap-2">
+                    {item.precioBase > item.precioEfectivo && <span className="text-[10px] line-through text-dark-blue/40 italic">${(item.precioBase * item.cantidad).toLocaleString()}</span>}
+                    <span className="font-semibold text-dark-blue">${(item.precioEfectivo * item.cantidad).toLocaleString()}</span>
+                  </div>
                 </div>
              ))}
              <div className="flex justify-between items-center pt-4 border-t border-dark-blue/10">
                 <span className="text-[10px] uppercase tracking-widest text-dark-blue/60">Envío</span>
                 <span className="text-xs font-bold text-brand-orange">{textoEnvio}</span>
              </div>
+             {ahorroSocio > 0 && (
+                <div className="mt-2 text-center text-[9px] font-black uppercase tracking-widest text-brand-orange bg-brand-orange/10 py-2 rounded">
+                  Socio VIP: Ahorraste ${ahorroSocio.toLocaleString()}
+                </div>
+             )}
           </div>
         </div>
       </div>
@@ -193,22 +268,26 @@ export default function Checkout() {
           </button>
           
           <form onSubmit={handleCheckout} className="flex flex-col gap-8">
+            
+            {/* PASO 1: DATOS PERSONALES */}
             <div className={`bg-white p-6 md:p-10 transition-all duration-500 rounded-sm shadow-sm ${activeStep === 1 ? 'border border-brand-orange/40 shadow-[0_4px_20px_rgba(0,0,0,0.03)]' : 'border border-dark-blue/10 opacity-70'}`}>
-              <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(1)}>
+              <div className="flex justify-between items-center cursor-pointer" onClick={() => !socio && setActiveStep(1)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-dark-blue">1. Datos Personales</h2>
-                {activeStep !== 1 && <span className="text-[10px] font-black uppercase tracking-widest text-brand-orange hover:underline">Editar</span>}
+                {activeStep !== 1 && !socio && <span className="text-[10px] font-black uppercase tracking-widest text-brand-orange hover:underline">Editar</span>}
+                {socio && <span className="text-[9px] font-black uppercase tracking-widest text-green-500 bg-green-50 px-2 py-1 rounded border border-green-200">Verificado</span>}
               </div>
               <div className={`overflow-hidden transition-all duration-500 ${activeStep === 1 ? 'max-h-[800px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} className={inputClases} />
-                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} className={inputClases} />
-                  <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} className={`${inputClases} md:col-span-2`} />
-                  <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555) *" value={formData.telefono} onChange={handleInputChange} className={`${inputClases} md:col-span-2`} />
+                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} readOnly={!!socio} className={socio ? inputReadonlyClases : inputClases} />
+                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} readOnly={!!socio} className={socio ? inputReadonlyClases : inputClases} />
+                  <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} readOnly={!!socio} className={`${socio ? inputReadonlyClases : inputClases} md:col-span-2`} />
+                  <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555) *" value={formData.telefono} onChange={handleInputChange} readOnly={!!socio} className={`${socio ? inputReadonlyClases : inputClases} md:col-span-2`} />
                 </div>
                 <button type="button" onClick={() => setActiveStep(2)} className="mt-8 bg-dark-blue text-white text-[10px] font-black uppercase tracking-[0.2em] px-10 py-5 hover:bg-brand-orange transition-all shadow-md outline-none">Continuar a Entrega</button>
               </div>
             </div>
 
+            {/* PASO 2: ENTREGA */}
             <div className={`bg-white p-6 md:p-10 transition-all duration-500 rounded-sm shadow-sm ${activeStep === 2 ? 'border border-brand-orange/40 shadow-[0_4px_20px_rgba(0,0,0,0.03)]' : 'border border-dark-blue/10 opacity-70'}`}>
               <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(2)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-dark-blue">2. Modalidad de Entrega</h2>
@@ -244,19 +323,37 @@ export default function Checkout() {
               </div>
             </div>
 
+            {/* PASO 3: PAGO Y VALIDACIÓN VIP */}
             <div className={`bg-white p-6 md:p-10 transition-all duration-500 rounded-sm shadow-sm ${activeStep === 3 ? 'border border-brand-orange/40 shadow-[0_4px_20px_rgba(0,0,0,0.03)]' : 'border border-dark-blue/10 opacity-70'}`}>
                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(3)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-dark-blue">3. Confirmar y Pagar</h2>
               </div>
               <div className={`overflow-hidden transition-all duration-500 ${activeStep === 3 ? 'max-h-[800px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
-                <div className="bg-[#F0EBE1]/50 border border-dark-blue/10 p-6 rounded-sm mb-8">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2 text-dark-blue"><ShieldIcon className="w-4 h-4 text-brand-orange" /> Miembro del Club VIP</h3>
-                  <div className="flex gap-2">
-                    <input type="text" placeholder="Ingresa tu PIN de Socio" value={inputSocio} onChange={(e) => setInputSocio(e.target.value)} className="flex-1 border border-dark-blue/10 p-3 text-sm font-bold tracking-widest outline-none focus:border-brand-orange" />
-                    <button type="button" onClick={handleValidarSocio} disabled={validandoSocio} className="bg-dark-blue text-white px-6 text-[10px] font-black uppercase tracking-widest hover:bg-brand-orange transition-colors disabled:opacity-50">Aplicar</button>
+                
+                {/* 👉 Lógica Dinámica de Login VIP en Checkout */}
+                {!socio ? (
+                  <div className="bg-[#F0EBE1]/50 border border-dark-blue/10 p-6 rounded-sm mb-8">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2 text-dark-blue">
+                      <ShieldIcon className="w-4 h-4 text-brand-orange" /> Miembro del Club VIP
+                    </h3>
+                    <div className="flex gap-2">
+                      <input type="password" placeholder="Ingresa tu PIN de Socio" value={inputSocio} onChange={(e) => setInputSocio(e.target.value)} className="flex-1 border border-dark-blue/10 p-3 text-sm font-bold tracking-widest outline-none focus:border-brand-orange" />
+                      <button type="button" onClick={handleValidarSocioCheckout} disabled={validando} className="bg-dark-blue text-white px-6 text-[10px] font-black uppercase tracking-widest hover:bg-brand-orange transition-colors disabled:opacity-50">
+                        {validando ? '...' : 'Aplicar'}
+                      </button>
+                    </div>
+                    {mensajeSocio.texto && <p className={`text-[10px] font-bold mt-3 uppercase tracking-wider ${mensajeSocio.tipo === 'error' ? 'text-red-500' : 'text-green-600'}`}>{mensajeSocio.texto}</p>}
                   </div>
-                  {mensajeSocio.texto && <p className={`text-[10px] font-bold mt-3 uppercase tracking-wider ${mensajeSocio.tipo === 'error' ? 'text-red-500' : 'text-green-600'}`}>{mensajeSocio.texto}</p>}
-                </div>
+                ) : (
+                  <div className="bg-brand-orange/5 border border-brand-orange/20 p-6 rounded-sm mb-8 flex items-center gap-4">
+                    <ShieldIcon className="w-8 h-8 text-brand-orange" />
+                    <div>
+                      <h3 className="text-[11px] font-black uppercase tracking-widest text-brand-orange mb-1">Beneficios VIP Activados</h3>
+                      <p className="text-[9px] uppercase tracking-widest text-dark-blue/60 font-bold">Tus descuentos ya están aplicados en el resumen.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-4 mb-8">
                   <label className={`border p-6 flex items-center gap-4 cursor-pointer transition-all rounded-sm ${formData.pago === 'transferencia' ? 'border-brand-orange bg-[#F0EBE1]/50' : 'border-dark-blue/10 hover:border-brand-orange/50'}`}>
                     <input type="radio" name="pago" value="transferencia" checked={formData.pago === 'transferencia'} onChange={handleInputChange} className="accent-brand-orange w-5 h-5" />
@@ -278,6 +375,7 @@ export default function Checkout() {
           </form>
         </div>
 
+        {/* PANEL DERECHO: RESUMEN DESKTOP */}
         <div className="hidden md:block bg-white border-l border-dark-blue/10 shadow-[-10px_0_30px_rgba(0,0,0,0.02)] z-10">
           <div className="sticky top-0 h-screen flex flex-col">
             <div className="p-10 border-b border-dark-blue/5 shrink-0">
@@ -286,7 +384,8 @@ export default function Checkout() {
             </div>
             <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
               <div className="flex flex-col gap-8">
-                {cart.map((item) => (
+                {/* 👉 Usamos el effectiveCart para renderizar precios correctos */}
+                {effectiveCart.map((item) => (
                    <div key={item.id} className="grid grid-cols-[80px_1fr_auto] gap-x-6 items-center border-b border-dark-blue/5 pb-8">
                     <div className="w-full aspect-[1/1.2] bg-[#F7F5F0] flex items-center justify-center p-2 rounded-sm border border-dark-blue/5 mix-blend-multiply">
                       <img src={item.imageUrl} alt={item.nombre} className="h-full w-auto object-contain mix-blend-multiply" />
@@ -295,21 +394,30 @@ export default function Checkout() {
                       <h4 className="font-playfair font-bold text-lg text-dark-blue leading-tight">{item.nombre}</h4>
                       <span className="text-[10px] uppercase tracking-widest text-light-blue font-bold">Cantidad: {item.cantidad}</span>
                     </div>
-                    <div className="font-poppins text-lg font-semibold text-dark-blue">${(item.precioFinal * item.cantidad).toLocaleString()}</div>
+                    <div className="flex flex-col items-end">
+                      {item.precioBase > item.precioEfectivo && (
+                        <span className="text-[11px] line-through text-dark-blue/40 italic">${(item.precioBase * item.cantidad).toLocaleString()}</span>
+                      )}
+                      <span className="font-poppins text-lg font-semibold text-dark-blue">${(item.precioEfectivo * item.cantidad).toLocaleString()}</span>
+                    </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-8 pt-8 border-t border-dark-blue/10 flex flex-col gap-4">
+              <div className="mt-8 pt-8 border-t border-dark-blue/10 flex flex-col gap-4 relative">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-dark-blue/60 uppercase tracking-widest font-bold">Subtotal</span>
                   <span className="text-dark-blue font-semibold">${subtotal.toLocaleString()}</span>
                 </div>
-                {montoDescuentoVIP > 0 && (
-                  <div className="flex justify-between items-center text-sm text-brand-orange">
-                    <span className="uppercase tracking-widest font-bold">Socio {datosSocio.badge}</span>
-                    <span className="font-bold">- ${montoDescuentoVIP.toLocaleString()}</span>
+                
+                {/* 👉 IMPACTO VISUAL DE AHORRO SOCIO */}
+                {ahorroSocio > 0 && (
+                  <div className="bg-brand-orange/10 border border-brand-orange/20 p-3 rounded text-center my-2 animate-in fade-in zoom-in duration-300">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-orange">
+                      POR SER MIEMBRO {socio.badge.toUpperCase()} AHORRASTE ${ahorroSocio.toLocaleString()}
+                    </span>
                   </div>
                 )}
+
                 {descuentoMontoTransferencia > 0 && (
                   <div className="flex justify-between items-center text-sm text-brand-orange">
                     <span className="uppercase tracking-widest font-bold">Desc. Transferencia</span>

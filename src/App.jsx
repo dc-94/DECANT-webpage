@@ -6,7 +6,6 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { CatalogProvider } from './context/CatalogContext';
 import { CartProvider } from './context/CartContext';
-// 👉 NUEVO: Importamos el motor lógico de los Socios VIP
 import { SocioProvider } from './context/SocioContext'; 
 
 // COMPONENTES GLOBALES LIVIANOS
