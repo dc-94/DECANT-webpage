@@ -186,3 +186,4 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
     return res.status(500).send({ success: false, error: error.message });
   }
 });
+
