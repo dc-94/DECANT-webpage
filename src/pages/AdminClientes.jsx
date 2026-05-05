@@ -3,7 +3,7 @@ import { db } from '../config/firebase';
 import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
-import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; // Reutilizamos tu Drawer de ventas
+import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
 
 export default function AdminClientes() {
   const navigate = useNavigate();
@@ -14,7 +14,6 @@ export default function AdminClientes() {
   const [busqueda, setBusqueda] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
-  // Estado para abrir el detalle de una venta específica desde el CRM
   const [ventaParaVer, setVentaParaVer] = useState(null);
   const [isDetalleVentaOpen, setIsDetalleVentaOpen] = useState(false);
 
@@ -37,7 +36,6 @@ export default function AdminClientes() {
     }
   }, [clienteSeleccionado]);
 
-  // 👉 Función para detectar si un campo fue modificado (Highlight)
   const isDirty = (campo) => {
     return editData[campo] !== clienteSeleccionado[campo];
   };
@@ -127,7 +125,6 @@ export default function AdminClientes() {
             
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               
-              {/* CONTACTO */}
               <section>
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Contacto</h4>
                 <div className="grid grid-cols-2 gap-3">
@@ -145,7 +142,6 @@ export default function AdminClientes() {
                 </div>
               </section>
 
-              {/* DIRECCIÓN */}
               <section>
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Dirección de Envío</h4>
                 <div className="grid grid-cols-6 gap-3">
@@ -168,34 +164,55 @@ export default function AdminClientes() {
                 </div>
               </section>
 
-              {/* HISTORIAL INTERACTIVO */}
+              {/* 👉 HISTORIAL INTERACTIVO ACTUALIZADO CON COMPROBANTES DE PAGO */}
               <section>
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Historial de Pedidos</h4>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {historialPedidos.map(p => (
-                    <div key={p.id} className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                      <div className="flex flex-col">
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Orden #{p.id.slice(0,5).toUpperCase()}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">{new Date(p.createdAt?.seconds * 1000).toLocaleDateString('es-AR')}</p>
+                    <div key={p.id} className="flex justify-between items-center p-4 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-slate-300 transition-all">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">Orden #{p.id.slice(0,5).toUpperCase()}</p>
+                          {/* Etiqueta Visual de Estado */}
+                          <span className={`text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest ${p.estado === 'Pagado' ? 'bg-green-100 text-green-700' : p.estado === 'Cancelado' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
+                            {p.estado}
+                          </span>
+                        </div>
+                        
+                        {/* Detalles de la Transacción Financiera */}
+                        {p.estado === 'Pagado' ? (
+                          <p className="text-[9px] font-bold text-slate-500">
+                            Vía {p.metodoPago || 'No registrada'} {p.numeroOperacion ? `• Ref: #${p.numeroOperacion}` : ''}
+                          </p>
+                        ) : (
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                            {new Date(p.createdAt?.seconds * 1000).toLocaleDateString('es-AR')}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-4">
-                        <p className="text-xs font-black text-slate-900">${p.totalFinal?.toLocaleString()}</p>
+                      
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <p className="text-sm font-black text-slate-900">${p.totalFinal?.toLocaleString()}</p>
                         <button 
                           onClick={() => { setVentaParaVer(p); setIsDetalleVentaOpen(true); }}
-                          className="bg-slate-900 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-lg hover:bg-brand-orange transition-colors"
+                          className="text-[9px] font-black text-brand-orange hover:underline outline-none uppercase tracking-widest"
                         >
                           Ver Detalle
                         </button>
                       </div>
                     </div>
                   ))}
+                  
+                  {historialPedidos.length === 0 && (
+                    <p className="text-xs text-slate-400 italic text-center py-4">No hay compras registradas.</p>
+                  )}
                 </div>
               </section>
             </div>
 
             <div className="p-6 border-t bg-white flex gap-3 shrink-0">
-              <button onClick={handleEliminarCliente} className="flex-1 py-3 border border-red-100 text-red-400 hover:bg-red-50 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all">Eliminar</button>
-              <button onClick={handleGuardarCambios} disabled={isSaving} className="flex-[2] py-3 bg-slate-900 text-white hover:bg-brand-orange text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all disabled:opacity-50">
+              <button onClick={handleEliminarCliente} className="flex-1 py-3 border border-red-100 text-red-400 hover:bg-red-50 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all outline-none">Eliminar</button>
+              <button onClick={handleGuardarCambios} disabled={isSaving} className="flex-[2] py-3 bg-slate-900 text-white hover:bg-brand-orange text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all disabled:opacity-50 outline-none">
                 {isSaving ? "Guardando..." : "Guardar Cambios"}
               </button>
             </div>

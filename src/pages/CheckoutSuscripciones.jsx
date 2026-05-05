@@ -48,17 +48,13 @@ export default function CheckoutSuscripcion() {
       
       if (nombrePlan.toLowerCase().includes('descorche')) {
         mpPlanId = '6a7c756d3ab64a4b9e7179902b227064'; 
-        
       } else if (nombrePlan.toLowerCase().includes('terruño') || nombrePlan.toLowerCase().includes('terruno')) {
         mpPlanId = 'cf1ddb5a8aa4419e8a604a91e37d60d8';
-
-      } 
-      else {
-        // Fallback por si hay algún error
+      } else {
         mpPlanId = '6a7c756d3ab64a4b9e7179902b227064'; 
       }
 
-     await setDoc(doc(db, 'clientes', emailLower), {
+      await setDoc(doc(db, 'clientes', emailLower), {
         nombre: formData.nombre, 
         apellido: formData.apellido, 
         email: emailLower, 
@@ -96,6 +92,28 @@ export default function CheckoutSuscripcion() {
         ...pedidoInfo, id: pedidoRef.id, ordenDisplay: numeroOrdenCorto 
       }));
 
+      // 👉 NUEVO: ENVIAR CORREO DE PEDIDO RECIBIDO (Plantilla 1)
+      try {
+        await fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: emailLower,
+            toName: `${formData.nombre} ${formData.apellido}`.trim(),
+            templateId: 1, // 👉 Plantilla #1: Pedido Recibido
+            params: {
+              nombre: formData.nombre,
+              orden: numeroOrdenCorto,
+              plan: nombrePlan
+            }
+          })
+        });
+      } catch (mailError) {
+        // Logueamos el error pero no frenamos el código para que el cliente pueda pagar
+        console.error("Error enviando email de recepción:", mailError);
+      }
+
+      // Redirigimos a la suscripción
       window.location.href = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
 
     } catch (error) {
@@ -248,7 +266,7 @@ export default function CheckoutSuscripcion() {
           </form>
         </div>
         
-        {/* RESUMEN LATERAL (Estilo Card Premium) */}
+        {/* RESUMEN LATERAL */}
         <div className="hidden md:block bg-extra-black/40 backdrop-blur-md border-l border-light-blue/10">
           <div className="sticky top-0 h-screen flex flex-col p-10 overflow-y-auto">
             <h3 className="font-playfair italic text-3xl text-brand-white mb-8">Tu Membresía</h3>
