@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore'; // Añadimos updateDoc
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const SocioContext = createContext();
 
@@ -35,66 +35,56 @@ export const SocioProvider = ({ children }) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
 
-        // 👉 SEGURIDAD #6: Verificar si la cuenta está bloqueada temporalmente
         if (data.bloqueadoHasta && ahora < data.bloqueadoHasta) {
           const minutosRestantes = Math.ceil((data.bloqueadoHasta - ahora) / 60000);
-          return { 
-            success: false, 
-            error: `Cuenta bloqueada por seguridad. Intenta nuevamente en ${minutosRestantes} minutos.` 
-          };
+          return { success: false, error: `Cuenta bloqueada. Intenta en ${minutosRestantes} min.` };
         }
         
-        // Verificamos el PIN
+        // 👉 VALIDACIÓN DE IDENTIDAD (PIN)
         if (data.numeroCliente === pin) {
-          // Si el login es correcto, verificamos la membresía
-          if (data.badge === 'Descorche' || data.badge === 'Terruño') {
-            const porcentaje = data.badge === 'Terruño' ? 0.20 : 0.15;
-            
-            // 👉 ÉXITO: Limpiamos los intentos fallidos en la base de datos
-            await updateDoc(docRef, {
-              intentosFallidos: 0,
-              bloqueadoHasta: null
-            });
+          // Éxito de identidad: reseteamos seguridad
+          await updateDoc(docRef, { intentosFallidos: 0, bloqueadoHasta: null });
 
-            setSocio({ 
-              email: emailLower, 
-              pin, 
-              badge: data.badge, 
-              porcentaje,
-              nombre: data.nombre 
-            });
-            return { success: true };
-          } else {
-            return { success: false, error: 'No tienes una membresía VIP activa en este momento.' };
-          }
+          // 👉 LÓGICA DE MEMBRESÍA: Determinamos si aplica descuento o no
+          const esVip = (data.badge === 'Descorche' || data.badge === 'Terruño');
+          let porcentaje = 0;
+          
+          if (data.badge === 'Terruño') porcentaje = 0.20;
+          else if (data.badge === 'Descorche') porcentaje = 0.15;
+
+          // Guardamos al usuario (sea VIP o no) para autocompletar
+          const datosSocio = { 
+            email: emailLower, 
+            pin, 
+            badge: data.badge || 'Cliente', 
+            porcentaje,
+            nombre: data.nombre,
+            isVip: esVip // Flag para la UI del checkout
+          };
+
+          setSocio(datosSocio);
+          return { success: true, isVip: esVip };
+
         } else {
-          // 👉 PIN INCORRECTO: Gestionamos el contador de intentos
+          // PIN Incorrecto: Lógica de Rate Limiting
           const nuevosIntentos = (data.intentosFallidos || 0) + 1;
           const updates = { intentosFallidos: nuevosIntentos };
-
-          if (nuevosIntentos >= 5) {
-            // Bloqueo por 15 minutos (900,000 ms)
-            updates.bloqueadoHasta = ahora + 900000;
-          }
-
+          if (nuevosIntentos >= 5) updates.bloqueadoHasta = ahora + 900000;
           await updateDoc(docRef, updates);
           return { success: false, error: mensajeErrorGenerico };
         }
       } else {
-        // El email no existe: mantenemos el error genérico
         return { success: false, error: mensajeErrorGenerico };
       }
     } catch (error) {
       console.error("Error al validar:", error);
-      return { success: false, error: 'Error de conexión. Por favor, intenta nuevamente.' };
+      return { success: false, error: 'Error de conexión.' };
     } finally {
       setValidando(false);
     }
   };
 
-  const logoutSocio = () => {
-    setSocio(null);
-  };
+  const logoutSocio = () => setSocio(null);
 
   return (
     <SocioContext.Provider value={{ socio, loginSocio, logoutSocio, validando }}>

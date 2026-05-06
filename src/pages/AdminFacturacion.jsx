@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { collection, onSnapshot, doc, setDoc, addDoc, query, orderBy } from 'firebase/firestore';
-import { useCatalog } from '../context/CatalogContext';
+import { 
+  collection, onSnapshot, doc, setDoc, addDoc, 
+  query, orderBy, getDocs // 👉 Agregamos getDocs
+} from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 
 // Drawers
@@ -10,10 +12,12 @@ import DrawerFactura from '../components/admin/DrawerFactura';
 import DrawerDetalleFactura from '../components/admin/DrawerDetalleFactura';
 
 export default function AdminFacturacion() {
-  const { productos } = useCatalog();
-  const [activeTab, setActiveTab] = useState('facturas'); // 'facturas' o 'proveedores'
+  const [activeTab, setActiveTab] = useState('facturas'); 
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // 👉 NUEVO: Estado dedicado para el buscador de productos en administración
+  const [productosBusqueda, setProductosBusqueda] = useState([]);
 
   // Estados Facturas
   const [facturas, setFacturas] = useState([]);
@@ -27,24 +31,35 @@ export default function AdminFacturacion() {
   const [provActivo, setProvActivo] = useState(null);
 
   useEffect(() => {
-    // Escuchar Historial de Facturas
+    // 1. CARGA DE ÍNDICE DE PRODUCTOS (Para los buscadores de los Drawers)
+    const cargarIndiceProductos = async () => {
+      try {
+        const q = query(collection(db, 'productos'), orderBy('nombre', 'asc'));
+        const snap = await getDocs(q);
+        const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setProductosBusqueda(lista);
+      } catch (err) {
+        console.error("Error cargando índice de productos:", err);
+      }
+    };
+    cargarIndiceProductos();
+
+    // 2. Escuchar Historial de Facturas
     const qFacturas = query(collection(db, 'historial_stock'), orderBy('createdAt', 'desc'));
     const unsubFacturas = onSnapshot(qFacturas, (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Filtramos solo los que son ingresos de factura
       setFacturas(docs.filter(d => d.tipo === 'INGRESO_FACTURA'));
     });
 
-    // Escuchar Proveedores
+    // 3. Escuchar Proveedores
     const unsubProv = onSnapshot(collection(db, 'proveedores'), (snap) => {
       setProveedores(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
 
     return () => { unsubFacturas(); unsubProv(); };
-  }, []);
+  }, [isDrawerFacturaOpen]); // Re-sincronizamos al cerrar/abrir carga para ver cambios en stock
 
-  // --- LÓGICA PROVEEDORES ---
   const abrirModalProv = (p) => {
     setProvActivo(p ? JSON.parse(JSON.stringify(p)) : { 
       nombre: '', cuit: '', razonSocial: '', direccion: '', vendedor: '', telefono: '', plazoPago: '' 
@@ -74,14 +89,12 @@ export default function AdminFacturacion() {
           
           <div className="flex flex-col md:flex-row justify-between items-end border-b border-slate-200 pb-6">
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight">Facturación</h1>
+              <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Facturación</h1>
               <div className="flex gap-8 mt-6">
                 <button onClick={() => setActiveTab('facturas')} className={`pb-3 text-[11px] font-black uppercase tracking-widest transition-colors ${activeTab === 'facturas' ? 'border-b-2 border-brand-orange text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}>Facturas y Compras</button>
                 <button onClick={() => setActiveTab('proveedores')} className={`pb-3 text-[11px] font-black uppercase tracking-widest transition-colors ${activeTab === 'proveedores' ? 'border-b-2 border-brand-orange text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}>Proveedores</button>
               </div>
             </div>
-            
-            {/* BOTÓN DINÁMICO SEGÚN LA PESTAÑA */}
             <button 
               onClick={() => activeTab === 'facturas' ? setIsDrawerFacturaOpen(true) : abrirModalProv(null)} 
               className="bg-slate-900 text-white px-8 py-3.5 rounded-sm font-black text-[10px] uppercase shadow-lg hover:bg-brand-orange transition-all"
@@ -91,9 +104,8 @@ export default function AdminFacturacion() {
           </div>
         </div>
 
-        {/* CONTENIDO DE LAS PESTAÑAS */}
+        {/* CONTENIDO DE TABLAS (Sin cambios en el render) */}
         {activeTab === 'facturas' ? (
-          // TABLA DE FACTURAS
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-300">
             <table className="w-full text-left">
               <thead>
@@ -128,7 +140,6 @@ export default function AdminFacturacion() {
             </table>
           </div>
         ) : (
-          // TABLA DE PROVEEDORES (La misma de siempre)
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-300">
             <table className="w-full text-left">
               <thead>
@@ -155,13 +166,11 @@ export default function AdminFacturacion() {
       </main>
 
       {/* DRAWERS Y MODALES */}
-      
-      {/* 1. Modal Nuevo/Editar Proveedor */}
       {modalProvAbierto && provActivo && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModalProvAbierto(false)}></div>
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
-            <header className="p-8 border-b bg-slate-50 flex justify-between"><div><h2 className="text-2xl font-black uppercase">Ficha Proveedor</h2></div></header>
+            <header className="p-8 border-b bg-slate-50 flex justify-between"><div><h2 className="text-2xl font-black uppercase text-slate-900">Ficha Proveedor</h2></div></header>
             <div className="p-8 space-y-4 overflow-y-auto">
               <input placeholder="Nombre Comercial" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none" value={provActivo.nombre} onChange={(e)=>setProvActivo({...provActivo, nombre: e.target.value})}/>
               <div className="grid grid-cols-2 gap-4">
@@ -183,20 +192,18 @@ export default function AdminFacturacion() {
         </div>
       )}
 
-      {/* 2. Drawer de Carga de Factura (El que modificamos antes) */}
+      {/* 👉 Pasamos productosBusqueda en lugar de productos del context */}
       <DrawerFactura 
         isOpen={isDrawerFacturaOpen} 
         onClose={() => setIsDrawerFacturaOpen(false)} 
-        productos={productos} 
+        productos={productosBusqueda} 
       />
 
-      {/* 3. Drawer Visualizador de Facturas */}
       <DrawerDetalleFactura 
         isOpen={isDetalleFacturaOpen} 
         onClose={() => setIsDetalleFacturaOpen(false)} 
         factura={facturaActiva} 
       />
-
     </div>
   );
 }
