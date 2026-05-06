@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore'; // 👉 Importamos onSnapshot
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'; 
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';
 
@@ -9,6 +9,7 @@ import Footer from '../components/layout/Footer';
 const CheckIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>);
 const PackageIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>);
 const WhatsappIcon = ({ className }) => (<svg className={className} fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>);
+const XIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>);
 
 export default function TrackingPedido() {
   const { id } = useParams();
@@ -18,7 +19,6 @@ export default function TrackingPedido() {
   const [whatsappEmpresa, setWhatsappEmpresa] = useState('');
 
   useEffect(() => {
-    // 1. Buscamos el WhatsApp de la empresa (esto sigue siendo una lectura única porque casi no cambia)
     const fetchAjustes = async () => {
       try {
         const storefrontSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
@@ -31,17 +31,14 @@ export default function TrackingPedido() {
     };
     fetchAjustes();
 
-    // 👉 2. IMPLEMENTACIÓN DE TIEMPO REAL: onSnapshot
     const docRef = doc(db, 'pedidos', id);
     
-    // onSnapshot abre la conexión y "escucha" los cambios constantemente
     const unsubscribe = onSnapshot(docRef, 
       (docSnap) => {
         if (docSnap.exists()) {
           setPedido({ id: docSnap.id, ...docSnap.data() });
-          setError(false); // Por si hubo un error temporal, lo limpiamos
+          setError(false); 
         } else {
-          // Si el admin elimina el pedido mientras el usuario lo mira, se mostrará la pantalla de error
           setError(true); 
           setPedido(null);
         }
@@ -56,9 +53,7 @@ export default function TrackingPedido() {
 
     window.scrollTo(0, 0);
 
-    // 👉 IMPORTANTE: Función de limpieza. Se ejecuta al salir de la página
     return () => unsubscribe();
-    
   }, [id]);
 
   if (cargando) {
@@ -83,10 +78,8 @@ export default function TrackingPedido() {
     );
   }
 
-  // 👉 CORRECCIÓN DE UX: Vinculamos la barra de progreso al 'estadoLogistica'
-  // Antes estaba vinculado a 'estado' (Pendiente/Pagado/Cancelado)
+  const esCancelado = pedido.estado === 'Cancelado' || pedido.estadoLogistica === 'Cancelado';
   const estadosLogistica = ['Pendiente', 'En Preparación', 'En Camino', 'Entregado'];
-  // Buscamos si existe estadoLogistica, sino le asignamos 'Pendiente' por defecto
   const estadoLogisticaActual = pedido.estadoLogistica || 'Pendiente';
   const estadoActualIndex = estadosLogistica.indexOf(estadoLogisticaActual);
 
@@ -108,66 +101,92 @@ export default function TrackingPedido() {
           </p>
         </div>
 
-        {/* LÍNEA DE TIEMPO (PROGRESS BAR) */}
+        {/* 👉 LOGICA DE ESTADO: Muestra cancelación o progreso lineal */}
         <div className="bg-white border border-dark-blue/10 p-8 md:p-12 mb-8 shadow-sm">
-          <div className="relative flex justify-between items-center max-w-2xl mx-auto">
-            <div className="absolute top-1/2 left-0 w-full h-1 bg-[#F0EBE1] -translate-y-1/2 z-0"></div>
-            <div 
-              className="absolute top-1/2 left-0 h-1 bg-brand-orange -translate-y-1/2 z-0 transition-all duration-1000 ease-out"
-              style={{ width: `${(Math.max(0, estadoActualIndex) / (estadosLogistica.length - 1)) * 100}%` }}
-            ></div>
-
-            {estadosLogistica.map((estado, index) => {
-              const completado = index <= estadoActualIndex;
-              const actual = index === estadoActualIndex;
-              return (
-                <div key={estado} className="relative z-10 flex flex-col items-center">
-                  <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm ${completado ? 'bg-brand-orange text-white' : 'bg-white border-2 border-[#F0EBE1] text-[#F0EBE1]'}`}>
-                    {completado ? <CheckIcon className="w-4 h-4 md:w-5 md:h-5" /> : <div className="w-2 h-2 rounded-full bg-[#F0EBE1]"></div>}
-                  </div>
-                  <span className={`absolute top-12 text-[8px] md:text-[10px] font-black uppercase tracking-widest text-center w-20 md:w-24 ${actual ? 'text-brand-orange' : completado ? 'text-dark-blue' : 'text-light-blue/50'}`}>
-                    {estado}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          
-          {/* CAJA DE MENSAJE DINÁMICO */}
-          <div className="mt-20 text-center bg-brand-orange/5 border border-brand-orange/20 p-6 md:p-8 flex flex-col items-center">
-            <PackageIcon className="w-8 h-8 text-brand-orange mb-3" />
-            <p className="font-poppins text-sm md:text-base text-dark-blue/80 mb-4">
-              {estadoActualIndex === 0 && "Hemos recibido tu pedido y está en cola de procesamiento."}
-              {estadoActualIndex === 1 && "¡El sommelier está preparando tu selección con cuidado en nuestra cava!"}
-              {estadoActualIndex === 2 && (
-                <>
-                  Tu pedido ya está en camino. <br/>
-                  {pedido.fechaEnvio && pedido.rangoHora ? (
-                    <span className="block mt-2 font-black text-brand-orange">
-                      Se entregará el {pedido.fechaEnvio} entre las {pedido.rangoHora}.
-                    </span>
-                  ) : (
-                    "Nos contactaremos a la brevedad para coordinar la entrega."
-                  )}
-                </>
+          {esCancelado ? (
+            <div className="text-center flex flex-col items-center animate-in fade-in duration-500">
+              <div className="w-16 h-16 bg-red-50 text-red-500 border border-red-100 rounded-full flex items-center justify-center mb-4 shadow-sm">
+                <XIcon className="w-8 h-8" />
+              </div>
+              <h3 className="font-playfair italic text-3xl text-dark-blue mb-2">Pedido Cancelado</h3>
+              <p className="font-poppins text-sm text-dark-blue/70 max-w-md mx-auto mb-6">
+                Este pedido ha sido cancelado y ya no se encuentra activo en nuestro sistema.
+              </p>
+              {whatsappEmpresa && (
+                <a 
+                  href={`https://wa.me/${whatsappEmpresa}?text=Hola,%20quisiera%20consultar%20sobre%20mi%20pedido%20cancelado%20%23${pedido.id.slice(0, 5).toUpperCase()}`} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-lg shadow-[#25D366]/20"
+                >
+                  <WhatsappIcon className="w-4 h-4" />
+                  Contactar Soporte
+                </a>
               )}
-              {estadoActualIndex === 3 && "¡Tu pedido ha sido entregado! Que disfrutes tu selección."}
-              {estadoActualIndex === -1 && "El estado de tu orden está siendo actualizado. Pronto tendrás novedades."}
-            </p>
+            </div>
+          ) : (
+            <>
+              {/* LÍNEA DE TIEMPO (PROGRESS BAR) */}
+              <div className="relative flex justify-between items-center max-w-2xl mx-auto">
+                <div className="absolute top-1/2 left-0 w-full h-1 bg-[#F0EBE1] -translate-y-1/2 z-0"></div>
+                <div 
+                  className="absolute top-1/2 left-0 h-1 bg-brand-orange -translate-y-1/2 z-0 transition-all duration-1000 ease-out"
+                  style={{ width: `${(Math.max(0, estadoActualIndex) / (estadosLogistica.length - 1)) * 100}%` }}
+                ></div>
 
-            {/* BOTÓN WHATSAPP DINÁMICO */}
-            {(estadoActualIndex === 1 || estadoActualIndex === 2) && whatsappEmpresa && (
-              <a 
-                href={`https://wa.me/${whatsappEmpresa}?text=Hola,%20quisiera%20consultar/modificar%20la%20entrega%20de%20mi%20Orden%20%23${pedido.id.slice(0, 5).toUpperCase()}`} 
-                target="_blank" 
-                rel="noreferrer" 
-                className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-lg shadow-green-500/20"
-              >
-                <WhatsappIcon className="w-4 h-4" />
-                Modificar día/horario
-              </a>
-            )}
-          </div>
+                {estadosLogistica.map((estado, index) => {
+                  const completado = index <= estadoActualIndex;
+                  const actual = index === estadoActualIndex;
+                  return (
+                    <div key={estado} className="relative z-10 flex flex-col items-center">
+                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm ${completado ? 'bg-brand-orange text-white' : 'bg-white border-2 border-[#F0EBE1] text-[#F0EBE1]'}`}>
+                        {completado ? <CheckIcon className="w-4 h-4 md:w-5 md:h-5" /> : <div className="w-2 h-2 rounded-full bg-[#F0EBE1]"></div>}
+                      </div>
+                      <span className={`absolute top-12 text-[8px] md:text-[10px] font-black uppercase tracking-widest text-center w-20 md:w-24 ${actual ? 'text-brand-orange' : completado ? 'text-dark-blue' : 'text-light-blue/50'}`}>
+                        {estado}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* CAJA DE MENSAJE DINÁMICO */}
+              <div className="mt-20 text-center bg-brand-orange/5 border border-brand-orange/20 p-6 md:p-8 flex flex-col items-center">
+                <PackageIcon className="w-8 h-8 text-brand-orange mb-3" />
+                <p className="font-poppins text-sm md:text-base text-dark-blue/80 mb-4">
+                  {estadoActualIndex === 0 && "Hemos recibido tu pedido y está en cola de procesamiento."}
+                  {estadoActualIndex === 1 && "¡El sommelier está preparando tu selección con cuidado en nuestra cava!"}
+                  {estadoActualIndex === 2 && (
+                    <>
+                      Tu pedido ya está en camino. <br/>
+                      {pedido.fechaEnvio && pedido.rangoHora ? (
+                        <span className="block mt-2 font-black text-brand-orange">
+                          Se entregará el {pedido.fechaEnvio} entre las {pedido.rangoHora}.
+                        </span>
+                      ) : (
+                        "Nos contactaremos a la brevedad para coordinar la entrega."
+                      )}
+                    </>
+                  )}
+                  {estadoActualIndex === 3 && "¡Tu pedido ha sido entregado! Que disfrutes tu selección."}
+                  {estadoActualIndex === -1 && "El estado de tu orden está siendo actualizado. Pronto tendrás novedades."}
+                </p>
+
+                {/* BOTÓN WHATSAPP DINÁMICO */}
+                {(estadoActualIndex === 1 || estadoActualIndex === 2) && whatsappEmpresa && (
+                  <a 
+                    href={`https://wa.me/${whatsappEmpresa}?text=Hola,%20quisiera%20consultar/modificar%20la%20entrega%20de%20mi%20Orden%20%23${pedido.id.slice(0, 5).toUpperCase()}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-lg shadow-green-500/20"
+                  >
+                    <WhatsappIcon className="w-4 h-4" />
+                    Modificar día/horario
+                  </a>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* RESUMEN DEL PEDIDO */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import SEO from '../components/public/SEO';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -14,15 +14,16 @@ const ArrowLeftIcon = ({ className }) => (<svg className={className} fill="none"
 const ShieldIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>);
 
 export default function Checkout() {
-  // 👉 Traemos la función para eliminar del carrito (verifica si en tu context se llama removeFromCart o eliminarItem)
   const { cart, totalPrecio, clearCart, removeFromCart } = useCart();
-  
   const { socio, loginSocio, validando } = useSocio(); 
   const navigate = useNavigate();
 
   const [activeStep, setActiveStep] = useState(1);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 👉 CORRECCIÓN BUG #5: Candado atómico para evitar el doble submit
+  const submitLock = useRef(false);
 
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', telefono: '',
@@ -79,7 +80,7 @@ export default function Checkout() {
     };
 
     inicializarDatos();
-  }, [socio]);
+  }, [socio, activeStep]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -144,6 +145,12 @@ export default function Checkout() {
 
   const handleCheckout = async (e) => {
     e.preventDefault();
+
+    // 👉 CORRECCIÓN BUG #5: Verificamos el candado atómico. Si está cerrado, ignoramos el clic.
+    if (submitLock.current) return;
+    
+    // Cerramos el candado inmediatamente y actualizamos la UI
+    submitLock.current = true;
     setIsProcessing(true);
 
     try {
@@ -155,7 +162,14 @@ export default function Checkout() {
 
       const pinSeguro = socio ? socio.pin : '';
 
-      const response = await fetch('https://us-central1-web-decant.cloudfunctions.net/procesarCheckoutTienda', { 
+      // 👉 CORRECCIÓN SEGURIDAD #2: Usamos la variable de entorno
+      const apiUrl = import.meta.env.VITE_API_CHECKOUT_URL;
+      
+      if (!apiUrl) {
+        throw new Error("Error de configuración: Faltan las variables de entorno del servidor.");
+      }
+
+      const response = await fetch(apiUrl, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,18 +183,13 @@ export default function Checkout() {
 
       const result = await response.json();
 
-      // 👉 MAGIA DE UX: INTERCEPTAMOS EL ERROR DE STOCK AQUÍ
       if (!response.ok || !result.success) {
         if (result.itemAgotadoId) {
-          // 1. Mostramos el motivo real ("Alguien se llevó la última unidad de...")
           alert(result.error); 
-          
-          // 2. Al cerrar el alert, removemos el producto fantasma
           if (removeFromCart) {
             removeFromCart(result.itemAgotadoId); 
           }
-          
-          // 3. Detenemos el spinner de carga para que pueda seguir comprando lo demás
+          submitLock.current = false; // Abrimos el candado si hubo error recuperable
           setIsProcessing(false);
           return;
         }
@@ -205,11 +214,13 @@ export default function Checkout() {
       }));
 
       clearCart();
+      // Nota: No abrimos el candado aquí porque estamos navegando fuera de la pantalla
       navigate('/gracias');
 
     } catch (error) {
       console.error("Error en el Checkout Seguro:", error);
       alert(error.message || "Hubo un problema al procesar tu pedido. Por favor, intenta nuevamente.");
+      submitLock.current = false; // Abrimos el candado si falló el proceso
       setIsProcessing(false);
     }
   };
@@ -219,15 +230,16 @@ export default function Checkout() {
     return (
       <div className="min-h-screen bg-[#F7F5F0] flex flex-col items-center justify-center font-poppins text-dark-blue p-6 text-center">
         <SEO title="Carrito Vacío" description="Tu carrito de compras está vacío." />
-        <h2 className="font-playfair italic text-3xl md:text-4xl text-dark-blue mb-4">Tu carrito está vacío</h2>
+        <h2 className="font-playfair italic text-3xl md:text-4xl text-dark-blue mb-4">Tu copa está vacía</h2>
         <p className="text-sm opacity-70 max-w-md mb-10 leading-relaxed">
-           ¡Descubre nuestra selección y encuentra tu próximo vino favorito!
+          Parece que no tienes productos en tu orden para continuar con el pago. 
+          ¡Descubre nuestra selección y encuentra tu próximo vino favorito!
         </p>
         <button 
-          onClick={() => navigate('/shop')} 
+          onClick={() => navigate('/')} 
           className="bg-brand-orange text-white text-[10px] font-black uppercase tracking-[0.2em] px-10 py-5 hover:bg-dark-blue transition-all shadow-[0_10px_30px_rgba(217,119,87,0.2)] outline-none"
         >
-          Ver Catálogo
+          Volver al Catálogo
         </button>
       </div>
     );
@@ -241,7 +253,7 @@ export default function Checkout() {
       <SEO title="Finalizar Compra" description="Completa tu compra de forma segura en Decant." />
       
       <div className="md:hidden bg-white border-b border-dark-blue/10 shrink-0 relative z-10">
-        <button onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)} className="w-full flex items-center justify-between p-6 text-sm font-black uppercase tracking-widest text-dark-blue outline-none">
+        <button type="button" onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)} className="w-full flex items-center justify-between p-6 text-sm font-black uppercase tracking-widest text-dark-blue outline-none">
           <span className="flex items-center gap-2">🛒 Resumen <ChevronIcon className="w-4 h-4" isOpen={mobileSummaryOpen} /></span>
           <span className="text-brand-orange font-bold">${totalFinal.toLocaleString()}</span>
         </button>
@@ -271,7 +283,7 @@ export default function Checkout() {
 
       <div className="max-w-[85rem] w-full mx-auto grid grid-cols-1 md:grid-cols-[1.3fr_1fr] flex-1">
         <div className="p-6 md:p-12 lg:p-16 flex flex-col">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-dark-blue/50 hover:text-brand-orange transition-colors w-max mb-10 outline-none group">
+          <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-dark-blue/50 hover:text-brand-orange transition-colors w-max mb-10 outline-none group">
             <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Volver
           </button>
           
@@ -370,6 +382,8 @@ export default function Checkout() {
                     <span className="text-sm font-bold uppercase tracking-wider text-dark-blue">Tarjetas (MercadoPago)</span>
                   </label>
                 </div>
+                
+                {/* 👉 Se mantiene la propiedad disabled para estilos, pero la seguridad la da useRef */}
                 <button disabled={isProcessing} type="submit" className="w-full bg-brand-orange text-white text-[12px] font-black uppercase tracking-[0.2em] px-8 py-6 hover:bg-dark-blue transition-all shadow-[0_10px_30px_rgba(217,119,87,0.2)] flex items-center justify-center gap-3 outline-none disabled:opacity-50">
                   {isProcessing ? 'Procesando...' : 'Confirmar Compra'} <span className="text-xl leading-none font-light">→</span>
                 </button>
@@ -378,7 +392,6 @@ export default function Checkout() {
           </form>
         </div>
 
-        {/* PANEL DERECHO: RESUMEN DESKTOP */}
         <div className="hidden md:block bg-white border-l border-dark-blue/10 shadow-[-10px_0_30px_rgba(0,0,0,0.02)] z-10">
           <div className="sticky top-0 h-screen flex flex-col">
             <div className="p-10 border-b border-dark-blue/5 shrink-0">

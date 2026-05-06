@@ -95,7 +95,8 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
     setItems(items.map(i => i.id === id ? { ...i, [campo]: valor } : i));
   };
 
-  const totalVenta = items.reduce((acc, i) => acc + (i.cantidad * i.precioUnitario), 0);
+  // 👉 CORRECCIÓN BUG #1: Usamos precioFinal en lugar de precioUnitario
+  const totalVenta = items.reduce((acc, i) => acc + (i.cantidad * i.precioFinal), 0);
 
   const finalizarVenta = async () => {
     if (items.length === 0) return alert("Cargue al menos un producto.");
@@ -268,7 +269,8 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
                         <input type="number" value={i.precioFinal} onChange={(e)=>actualizarItem(i.id, 'precioFinal', parseInt(e.target.value))} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
                       </div>
                       <div className="text-right flex flex-col justify-end">
-                        <p className="text-xs font-black">${(i.cantidad * i.precioUnitario).toLocaleString()}</p>
+                        {/* 👉 CORRECCIÓN BUG #2: Renderizamos correctamente el total usando precioFinal */}
+                        <p className="text-xs font-black">${(i.cantidad * i.precioFinal).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>

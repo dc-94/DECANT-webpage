@@ -36,6 +36,9 @@ export const SocioProvider = ({ children }) => {
       const docRef = doc(db, 'clientes', emailLower);
       const docSnap = await getDoc(docRef);
 
+      // 👉 CORRECCIÓN SEGURIDAD #1: Mensaje genérico para evitar enumeración de emails
+      const mensajeErrorGenerico = 'El correo electrónico o el PIN ingresados son incorrectos.';
+
       if (docSnap.exists()) {
         const data = docSnap.data();
         
@@ -59,10 +62,12 @@ export const SocioProvider = ({ children }) => {
             return { success: false, error: 'No tienes una membresía VIP activa en este momento.' };
           }
         } else {
-          return { success: false, error: 'El PIN ingresado es incorrecto.' };
+          // Falló el PIN: mostramos error genérico
+          return { success: false, error: mensajeErrorGenerico };
         }
       } else {
-        return { success: false, error: 'No encontramos un registro con ese correo electrónico.' };
+        // Falló el email (no existe): mostramos el MISMO error genérico
+        return { success: false, error: mensajeErrorGenerico };
       }
     } catch (error) {
       console.error("Error al validar:", error);
