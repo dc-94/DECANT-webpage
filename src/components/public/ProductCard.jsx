@@ -4,6 +4,9 @@ import { Link } from 'react-router-dom';
 import BlobProducto from '../icons/BlobProducto';
 import { useSocio } from '../../context/SocioContext';
 
+// 👉 Importamos nuestro nuevo motor de precios
+import { usePricingEngine } from '../../hooks/usePricingEngine';
+
 const ShoppingBagIcon = memo(({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -17,6 +20,13 @@ const ProductCard = memo(function ProductCard({ producto }) {
   const [showQuantity, setShowQuantity] = useState(false);
   const [cantidad, setCantidad] = useState(1);
 
+  // 👉 Llamamos a nuestro Hook para que haga toda la matemática por nosotros
+  const { 
+    precioBase, 
+    precioEfectivo, 
+    descuentoVIPAplicado 
+  } = usePricingEngine(producto, socio);
+
   const formatPrice = (price) => new Intl.NumberFormat('es-AR', {
     style: 'currency', currency: 'ARS', maximumFractionDigits: 0
   }).format(price || 0);
@@ -24,28 +34,9 @@ const ProductCard = memo(function ProductCard({ producto }) {
   const stock = producto.stock || 0;
   const sinStock = stock <= 0 && !producto.aPedido;
   
-  // 👉 NUEVA LÓGICA DE PRECIOS NO ACUMULABLES
-  const precioBase = producto.precioBase || producto.precioFinal; // Precio original de lista
-  const precioTiendaActual = producto.precioFinal; // Precio actual (con posibles promos ya aplicadas)
-  
-  // Calculamos cuánto pagaría si solo aplicamos su descuento VIP sobre el precio base
-  const precioTeoricoSocio = socio ? Math.round(precioBase * (1 - socio.porcentaje)) : null;
-
-  // Decidimos cuál es el mejor precio final a cobrar
-  let precioCobrar = precioTiendaActual;
-  let descuentoAplicadoEsVIP = false;
-
-  if (socio) {
-    // Le damos el precio más bajo entre la promoción actual de la tienda y su beneficio VIP
-    if (precioTeoricoSocio < precioTiendaActual) {
-      precioCobrar = precioTeoricoSocio;
-      descuentoAplicadoEsVIP = true;
-    }
-  }
-
-  // Definimos qué precio tachado mostrar
-  const precioAnterior = (precioBase > precioCobrar) ? precioBase : null;
-  const mostrarLabelNormal = !descuentoAplicadoEsVIP && (producto.precioBase > producto.precioFinal) && producto.mostrarDescuento && producto.descuentoNombre;
+  // Definimos qué precio tachado mostrar y si se debe mostrar el label de descuento normal
+  const precioAnterior = (precioBase > precioEfectivo) ? precioBase : null;
+  const mostrarLabelNormal = !descuentoVIPAplicado && (producto.precioBase > producto.precioFinal) && producto.mostrarDescuento && producto.descuentoNombre;
 
   const leyendaStock = stock === 1 ? "¡Es el último!" : `¡Últimas ${stock} u.!`;
 
@@ -91,7 +82,7 @@ const ProductCard = memo(function ProductCard({ producto }) {
 
         <div className="mt-auto flex flex-col pt-2">
           <div className="h-5 flex items-end mb-1">
-            {descuentoAplicadoEsVIP ? (
+            {descuentoVIPAplicado ? (
               <div className="flex flex-row items-center bg-extra-black text-brand-orange rounded-[4px] overflow-hidden w-max shadow-sm px-2 py-0.5">
                 <span className="text-[9px] font-black uppercase tracking-widest">Socio {socio.badge}</span>
               </div>
@@ -104,8 +95,8 @@ const ProductCard = memo(function ProductCard({ producto }) {
           </div>
           
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className={`text-xl md:text-2xl font-semibold whitespace-nowrap ${descuentoAplicadoEsVIP ? 'text-brand-orange' : 'text-dark-blue'}`}>
-              {formatPrice(precioCobrar)}
+            <span className={`text-xl md:text-2xl font-semibold whitespace-nowrap ${descuentoVIPAplicado ? 'text-brand-orange' : 'text-dark-blue'}`}>
+              {formatPrice(precioEfectivo)}
             </span>
             {precioAnterior && (
               <span className="text-[11px] line-through text-dark-grey/50 italic whitespace-nowrap">
@@ -130,9 +121,11 @@ const ProductCard = memo(function ProductCard({ producto }) {
             <button onClick={(e) => { e.preventDefault(); sumar(e); }} className="w-10 h-full hover:bg-brand-orange/10 transition-colors text-lg flex items-center justify-center text-brand-orange outline-none">+</button>
             <button onClick={(e) => { 
                 e.preventDefault(); e.stopPropagation(); 
-                // Enviar al carrito con el precio resuelto
-                const productoParaBolsa = { ...producto, precioFinal: precioCobrar };
-                if (descuentoAplicadoEsVIP) productoParaBolsa.descuentoNombre = `Socio ${socio.badge}`;
+                
+                // 👉 Usamos precioEfectivo validado por el hook
+                const productoParaBolsa = { ...producto, precioFinal: precioEfectivo };
+                if (descuentoVIPAplicado) productoParaBolsa.descuentoNombre = `Socio ${socio.badge}`;
+                
                 addToCart(productoParaBolsa, cantidad); 
                 setShowQuantity(false); setCantidad(1);                
               }} className="bg-brand-orange text-brand-white h-full px-3 flex items-center justify-center hover:bg-dark-orange transition-colors outline-none">

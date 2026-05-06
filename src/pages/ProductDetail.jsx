@@ -10,6 +10,9 @@ import DynamicGuide from '../components/public/DynamicGuide';
 import Footer from '../components/layout/Footer';
 import { useSocio } from '../context/SocioContext';
 
+// 👉 Importamos nuestro motor de precios
+import { usePricingEngine } from '../hooks/usePricingEngine';
+
 const ShoppingBagIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -36,24 +39,19 @@ export default function ProductDetail() {
 
   useEffect(() => { window.scrollTo(0, 0); }, [id]);
 
+  // 👉 ARQUITECTURA CLEAN CODE: Llamamos a nuestro Hook
+  // Esto debe ir antes de los 'if (cargando)' para respetar las reglas de los hooks de React.
+  const { 
+    precioBase, 
+    precioEfectivo, 
+    descuentoVIPAplicado 
+  } = usePricingEngine(producto, socio);
+
   if (cargando) return <div className="min-h-screen flex items-center justify-center bg-neutral-white font-poppins text-[10px] tracking-[0.4em] uppercase">Cargando etiqueta...</div>;
   if (!producto) return <div className="min-h-screen flex items-center justify-center bg-neutral-white"><Link to="/shop" className="font-poppins uppercase tracking-widest text-[10px] border-b border-dark-blue">Volver al Shop</Link></div>;
 
-  // 👉 NUEVA LÓGICA DE PRECIOS NO ACUMULABLES
-  const precioBase = producto.precioBase || producto.precioFinal;
-  const precioTiendaActual = producto.precioFinal;
-  const precioTeoricoSocio = socio ? Math.round(precioBase * (1 - socio.porcentaje)) : null;
-
-  let precioCobrar = precioTiendaActual;
-  let descuentoAplicadoEsVIP = false;
-
-  if (socio && (precioTeoricoSocio < precioTiendaActual)) {
-    precioCobrar = precioTeoricoSocio;
-    descuentoAplicadoEsVIP = true;
-  }
-
-  const precioAnterior = (precioBase > precioCobrar) ? precioBase : null;
-  const mostrarLabelNormal = !descuentoAplicadoEsVIP && (producto.precioBase > producto.precioFinal) && producto.mostrarDescuento && producto.descuentoNombre;
+  const precioAnterior = (precioBase > precioEfectivo) ? precioBase : null;
+  const mostrarLabelNormal = !descuentoVIPAplicado && (producto.precioBase > producto.precioFinal) && producto.mostrarDescuento && producto.descuentoNombre;
 
   const formatPrice = (price) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(price || 0);
   const stock = producto.stock || 0;
@@ -63,7 +61,7 @@ export default function ProductDetail() {
 
   const jsonLd = {
     "@context": "https://schema.org/", "@type": "Product", "name": producto.nombre, "image": producto.imageUrl, "description": producto.descripcion || `Exclusivo ${producto.varietal || producto.categoria} disponible en Decant.`, "sku": producto.id, "brand": { "@type": "Brand", "name": producto.bodega || "Decant" },
-    "offers": { "@type": "Offer", "url": typeof window !== 'undefined' ? window.location.href : '', "priceCurrency": "ARS", "price": precioCobrar, "availability": stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
+    "offers": { "@type": "Offer", "url": typeof window !== 'undefined' ? window.location.href : '', "priceCurrency": "ARS", "price": precioEfectivo, "availability": stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
   };
 
   const getTruncatedBreadcrumb = () => {
@@ -117,12 +115,12 @@ export default function ProductDetail() {
 
           <div className="flex flex-col mb-14 w-full">
             <div className="flex items-baseline gap-4 w-full flex-wrap">
-              <span className={`text-3xl md:text-5xl font-poppins font-semibold whitespace-nowrap ${descuentoAplicadoEsVIP ? 'text-brand-orange' : 'text-dark-blue'}`}>{formatPrice(precioCobrar)}</span>
+              <span className={`text-3xl md:text-5xl font-poppins font-semibold whitespace-nowrap ${descuentoVIPAplicado ? 'text-brand-orange' : 'text-dark-blue'}`}>{formatPrice(precioEfectivo)}</span>
               {precioAnterior && <span className="text-lg md:text-xl font-poppins line-through text-dark-grey/50 italic whitespace-nowrap">{formatPrice(precioAnterior)}</span>}
             </div>
             
             <div className="mt-3 flex flex-row">
-              {descuentoAplicadoEsVIP ? (
+              {descuentoVIPAplicado ? (
                  <div className="flex flex-row items-center justify-center bg-extra-black text-brand-orange shadow-md px-4 py-2 rounded-sm">
                    <span className="text-[11px] md:text-xs font-black uppercase tracking-widest leading-tight">Precio Socio {socio.badge}</span>
                  </div>
@@ -145,8 +143,8 @@ export default function ProductDetail() {
                 <button onClick={() => cantidad < stock && setCantidad(cantidad + 1)} className="w-10 h-full text-lg hover:text-brand-orange transition-colors outline-none">+</button>
               </div>
               <button disabled={sinStock} onClick={() => {
-                  const productoParaBolsa = { ...producto, precioFinal: precioCobrar };
-                  if(descuentoAplicadoEsVIP) productoParaBolsa.descuentoNombre = `Socio ${socio.badge}`;
+                  const productoParaBolsa = { ...producto, precioFinal: precioEfectivo };
+                  if(descuentoVIPAplicado) productoParaBolsa.descuentoNombre = `Socio ${socio.badge}`;
                   addToCart(productoParaBolsa, cantidad);
                 }} className={`flex-1 flex items-center justify-between px-6 md:px-8 h-16 font-poppins font-black uppercase tracking-[0.2em] text-[10px] md:text-[12px] transition-all duration-500 outline-none ${sinStock ? 'bg-light-grey text-dark-grey cursor-not-allowed border border-dark-blue/10' : 'bg-brand-orange text-brand-white hover:bg-dark-orange hover:-translate-y-1 shadow-xl hover:shadow-2xl'}`}>
                 <span>{sinStock ? 'Agotado' : 'Comprar'}</span><ShoppingBagIcon className="w-6 h-6 md:w-7 md:h-7" />
