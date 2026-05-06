@@ -14,10 +14,12 @@ export const useCart = () => {
 
 // 3. El Provider que envolverá nuestra aplicación
 export const CartProvider = ({ children }) => {
-  // === NUEVO ESTADO GLOBAL PARA EL DRAWER ===
+  // === NUEVO ESTADO GLOBAL PARA EL DRAWER Y EL TOAST ===
   const [isCartOpen, setIsCartOpen] = useState(false);
-  // Estado para el feedback visual en el Navbar
   const [justAdded, setJustAdded] = useState(false);
+  
+  // 👉 UX #2: Estado para el mensaje del Toast flotante
+  const [toastMessage, setToastMessage] = useState('');
 
   // Inicializamos el estado leyendo el localStorage por si hay un carrito guardado
   const [cart, setCart] = useState(() => {
@@ -61,9 +63,15 @@ export const CartProvider = ({ children }) => {
       return [...prevCart, { ...producto, cantidad }];
     });
 
-    // Activar feedback visual temporal sin abrir el drawer
+    // 👉 UX #2: Activamos el mini-toast con la notificación genérica
+    setToastMessage(`${cantidad} · ${producto.nombre} agregado al carrito`);
     setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1500); 
+    
+    // Lo ocultamos automáticamente después de 2 segundos (2000ms)
+    setTimeout(() => {
+      setJustAdded(false);
+      setToastMessage('');
+    }, 2000); 
   };
 
   // Cambiar la cantidad de un producto específico (desde la vista del carrito)
@@ -114,11 +122,24 @@ export const CartProvider = ({ children }) => {
     clearCart,
     totalItems,
     totalPrecio,
-    // === EXPORTAMOS EL ESTADO DEL DRAWER ===
     isCartOpen,
     setIsCartOpen,
-    justAdded // Exportamos el nuevo estado para el feedback
+    justAdded 
   };
 
-  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider value={value}>
+      {children}
+      
+      {/* 👉 UX #2: Componente Toast Global (Mini notificación flotante inferior) */}
+      <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] bg-dark-blue px-6 py-4 rounded-sm shadow-2xl transition-all duration-300 pointer-events-none flex items-center gap-3 ${toastMessage ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+        <div className="w-4 h-4 rounded-full bg-brand-orange flex items-center justify-center shrink-0">
+          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-widest text-brand-white">
+          {toastMessage}
+        </span>
+      </div>
+    </CartContext.Provider>
+  );
 };

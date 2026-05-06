@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import SEO from '../components/public/SEO';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '../config/firebase'; 
-import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore'; 
+
+import { useSocio } from '../context/SocioContext';
 
 const ChevronIcon = ({ className, isOpen }) => (<svg className={`${className} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>);
 const ArrowLeftIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>);
@@ -11,8 +13,10 @@ const ShieldIcon = ({ className }) => (<svg className={className} fill="none" st
 export default function CheckoutSuscripcion() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { socio } = useSocio(); 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [planVIP, setPlanVIP] = useState(null);
+  
+  const [planVIP] = useState(() => location.state?.planElegido || null);
 
   const [activeStep, setActiveStep] = useState(1);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
@@ -21,25 +25,112 @@ export default function CheckoutSuscripcion() {
     nombre: '', apellido: '', email: '', telefono: '', direccion: '', ciudad: '', cp: '', envio: 'rosario', pago: 'mercadopago' 
   });
 
-  useEffect(() => {
-    if (location.state && location.state.planElegido) {
-      setPlanVIP(location.state.planElegido);
-    }
-  }, [location]);
+  const [errores, setErrores] = useState({ email: '', telefono: '' });
 
-  const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  useEffect(() => {
+    if (socio && socio.email) {
+      const fetchSocioData = async () => {
+        try {
+          const docSnap = await getDoc(doc(db, 'clientes', socio.email));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setFormData(prev => ({
+              ...prev,
+              nombre: data.nombre || prev.nombre,
+              apellido: data.apellido || prev.apellido,
+              email: data.email || socio.email,
+              telefono: data.telefono || prev.telefono,
+              direccion: data.direccionDefault || prev.direccion,
+              ciudad: data.ciudad || prev.ciudad,
+              cp: data.cp || prev.cp
+            }));
+            if (activeStep === 1) setActiveStep(2);
+          }
+        } catch (e) { console.error("Error obteniendo datos del socio", e); }
+      };
+      fetchSocioData();
+    }
+  }, [socio, activeStep]);
+
+  const handleInputChange = (e) => {
+    let { name, value } = e.target;
+
+    // 👉 SEGURIDAD CISO: Sanitización estricta por tipo de campo
+    if (name === 'email') {
+      // Bloquea inyección CRLF en cabeceras de correo
+      value = value.replace(/[\r\n]+/g, '');
+    } else {
+      // Bloquea XSS y Server-Side Template Injection eliminando < > { } = |
+      // Permite letras, números, espacios, acentos y signos de puntuación normales
+      value = value.replace(/[<>{}|=]/g, '');
+    }
+
+    setFormData({ ...formData, [name]: value });
+    
+    if (errores[name]) {
+      setErrores({ ...errores, [name]: '' });
+    }
+  };
+
+  const handleBlur = async (e) => {
+    const { name, value } = e.target;
+    
+    if (name === 'email' && value.trim() !== '') {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(value)) {
+        setErrores(prev => ({ ...prev, email: 'Ingresa un formato de correo válido.' }));
+        return;
+      }
+
+      if (!socio) {
+        try {
+          const docRef = doc(db, 'clientes', value.toLowerCase().trim());
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setErrores(prev => ({ ...prev, email: 'Este correo ya está registrado. Por favor, inicia sesión en el menú superior para suscribirte.' }));
+          }
+        } catch (error) {
+          console.error("Error verificando email:", error);
+        }
+      }
+    }
+    
+    if (name === 'telefono' && value.trim() !== '') {
+      const numeros = value.replace(/\D/g, ''); 
+      if (numeros.length < 10 || numeros.length > 15) {
+        setErrores(prev => ({ ...prev, telefono: 'Ingresa un número válido con código de área (10-15 dígitos).' }));
+      }
+    }
+  };
 
   const textoEnvio = (formData.envio === 'rosario' || formData.envio === 'retiro') ? 'Gratis' : 'A convenir';
+
+  const generarPinUnico = async () => {
+    let pin = '';
+    let existe = true;
+    while (existe) {
+      pin = Math.floor(1000 + Math.random() * 9000).toString();
+      const q = query(collection(db, 'clientes'), where('numeroCliente', '==', pin));
+      const snap = await getDocs(q);
+      if (snap.empty) existe = false;
+    }
+    return pin;
+  };
 
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (!planVIP) return; 
+
+    if (errores.email || errores.telefono) {
+      alert("Por favor, corrige los errores en el formulario antes de continuar.");
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
       const emailLower = formData.email.toLowerCase().trim();
-      const numeroCliente = Math.floor(1000 + Math.random() * 9000).toString(); 
-      
+      const numeroCliente = socio ? socio.pin : await generarPinUnico();
       const nombrePlan = planVIP.nombre || 'Club de Vinos';
       const badgeSocio = planVIP.subcategoria || planVIP.nombre || 'Socio VIP';
       const subtotalSuscripcion = planVIP.precioFinal; 
@@ -47,12 +138,14 @@ export default function CheckoutSuscripcion() {
       let mpPlanId = '';
       
       if (nombrePlan.toLowerCase().includes('descorche')) {
-        mpPlanId = '6a7c756d3ab64a4b9e7179902b227064'; 
+        mpPlanId = import.meta.env.VITE_MP_PLAN_DESCORCHE; 
       } else if (nombrePlan.toLowerCase().includes('terruño') || nombrePlan.toLowerCase().includes('terruno')) {
-        mpPlanId = 'cf1ddb5a8aa4419e8a604a91e37d60d8';
+        mpPlanId = import.meta.env.VITE_MP_PLAN_TERRUNO;
       } else {
-        mpPlanId = '6a7c756d3ab64a4b9e7179902b227064'; 
+        mpPlanId = import.meta.env.VITE_MP_PLAN_DESCORCHE; 
       }
+
+      if (!mpPlanId) throw new Error("Error de configuración: Faltan los IDs de Mercado Pago en el sistema.");
 
       await setDoc(doc(db, 'clientes', emailLower), {
         nombre: formData.nombre, 
@@ -92,7 +185,6 @@ export default function CheckoutSuscripcion() {
         ...pedidoInfo, id: pedidoRef.id, ordenDisplay: numeroOrdenCorto 
       }));
 
-      // 👉 NUEVO: ENVIAR CORREO DE PEDIDO RECIBIDO (Plantilla 1)
       try {
         await fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
           method: 'POST',
@@ -100,30 +192,23 @@ export default function CheckoutSuscripcion() {
           body: JSON.stringify({
             toEmail: emailLower,
             toName: `${formData.nombre} ${formData.apellido}`.trim(),
-            templateId: 1, // 👉 Plantilla #1: Pedido Recibido
-            params: {
-              nombre: formData.nombre,
-              orden: numeroOrdenCorto,
-              plan: nombrePlan
-            }
+            templateId: 1, 
+            params: { nombre: formData.nombre, orden: numeroOrdenCorto, plan: nombrePlan }
           })
         });
       } catch (mailError) {
-        // Logueamos el error pero no frenamos el código para que el cliente pueda pagar
         console.error("Error enviando email de recepción:", mailError);
       }
 
-      // Redirigimos a la suscripción
       window.location.href = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
 
     } catch (error) {
       console.error("Error en checkout suscripción:", error);
-      alert("Error al procesar la orden. Intentá nuevamente.");
+      alert(error.message || "Error al procesar la orden. Intentá nuevamente.");
       setIsProcessing(false);
     }
   };
 
-  // 👉 EL BARRICADA ANTI-INTRUSOS
   if (!planVIP) {
     return (
       <div className="min-h-screen bg-extra-black flex flex-col items-center justify-center p-6 text-center">
@@ -141,7 +226,6 @@ export default function CheckoutSuscripcion() {
     );
   }
 
-  // 👉 RECONSTRUCCIÓN DE BENEFICIOS SEGÚN EL PLAN
   let beneficiosPlan = [];
   const nombreLower = planVIP.nombre.toLowerCase();
   if (nombreLower.includes('descorche')) {
@@ -152,7 +236,17 @@ export default function CheckoutSuscripcion() {
     beneficiosPlan = ["Selección curada mensual", "Beneficios exclusivos en el Shop", "Envío bonificado en Rosario"];
   }
 
-  const inputClases = "w-full bg-dark-blue/40 backdrop-blur-sm border-b border-light-blue/20 px-4 py-4 text-sm outline-none focus:border-brand-orange text-brand-white placeholder-brand-white/30 transition-all focus:bg-dark-blue/60";
+  const getInputClasses = (fieldName) => {
+    let base = "w-full bg-dark-blue/40 backdrop-blur-sm border-b px-4 py-4 text-sm outline-none text-brand-white transition-all focus:bg-dark-blue/60";
+    if (socio) {
+      base = "w-full bg-dark-blue/10 backdrop-blur-sm border-b px-4 py-4 text-sm outline-none text-brand-white/50 cursor-not-allowed select-none";
+      return `${base} border-light-blue/10`;
+    }
+    const status = errores[fieldName] 
+      ? "border-red-500 placeholder-brand-white/30" 
+      : "border-light-blue/20 focus:border-brand-orange placeholder-brand-white/30";
+    return `${base} ${status}`;
+  };
 
   return (
     <div className="min-h-screen bg-extra-black text-brand-white font-poppins selection:bg-brand-orange selection:text-white flex flex-col relative overflow-hidden">
@@ -161,15 +255,13 @@ export default function CheckoutSuscripcion() {
       <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-brand-orange/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[30rem] h-[30rem] bg-light-blue/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
-      {/* VERSIÓN MÓVIL DEL RESUMEN */}
       <div className="md:hidden bg-extra-black/80 backdrop-blur-md border-b border-brand-orange/20 shrink-0 relative z-10">
-        <button onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)} className="w-full flex items-center justify-between p-6 text-sm font-black uppercase tracking-widest text-brand-orange outline-none">
+        <button type="button" onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)} className="w-full flex items-center justify-between p-6 text-sm font-black uppercase tracking-widest text-brand-orange outline-none">
           <span className="flex items-center gap-2">🍷 Resumen de Membresía <ChevronIcon className="w-4 h-4" isOpen={mobileSummaryOpen} /></span>
           <span className="text-white font-bold">${planVIP.precioFinal.toLocaleString()}</span>
         </button>
         <div className={`overflow-hidden transition-all duration-300 ${mobileSummaryOpen ? 'max-h-[800px] border-t border-light-blue/10' : 'max-h-0'}`}>
           <div className="p-6 flex flex-col gap-4">
-             {/*  PARA MÓVIL (Lado a Lado) */}
              <div className="flex items-center gap-4">
                {planVIP.imageUrl && (
                  <div className="w-14 h-14 bg-brand-white/5 flex items-center justify-center p-1.5 rounded-sm shrink-0">
@@ -200,28 +292,38 @@ export default function CheckoutSuscripcion() {
       <div className="max-w-[85rem] w-full mx-auto grid grid-cols-1 md:grid-cols-[1.3fr_1fr] flex-1 relative z-10">
         
         <div className="p-6 md:p-12 lg:p-16 flex flex-col">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-brand-white/50 hover:text-brand-orange transition-colors w-max mb-10 outline-none group">
+          <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-brand-white/50 hover:text-brand-orange transition-colors w-max mb-10 outline-none group">
             <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Volver
           </button>
           
           <form onSubmit={handleCheckout} className="flex flex-col gap-8">
             <div className={`bg-dark-blue/20 backdrop-blur-sm p-6 md:p-10 transition-all duration-500 rounded-sm ${activeStep === 1 ? 'border border-brand-orange/50 shadow-[0_0_30px_rgba(217,119,87,0.1)]' : 'border border-light-blue/10 opacity-60'}`}>
-              <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(1)}>
+              <div className="flex justify-between items-center cursor-pointer" onClick={() => !socio && setActiveStep(1)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-brand-orange">1. Datos Personales y Domicilio</h2>
-                {activeStep !== 1 && <span className="text-[10px] font-black uppercase tracking-widest text-brand-white/60 hover:text-brand-orange">Editar</span>}
+                {activeStep !== 1 && !socio && <span className="text-[10px] font-black uppercase tracking-widest text-brand-white/60 hover:text-brand-orange">Editar</span>}
+                {socio && <span className="text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 px-2 py-1 rounded border border-green-400/20">Verificado</span>}
               </div>
               <div className={`overflow-hidden transition-all duration-500 ${activeStep === 1 ? 'max-h-[800px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                   <div className="md:col-span-2 mb-2"><span className="text-[10px] uppercase tracking-widest text-brand-orange font-bold">Datos de Contacto</span></div>
-                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} className={inputClases} />
-                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} className={inputClases} />
-                  <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} className={`${inputClases} md:col-span-2`} />
-                  <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555) *" value={formData.telefono} onChange={handleInputChange} className={`${inputClases} md:col-span-2`} />
+                  
+                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} readOnly={!!socio} className={getInputClasses('nombre')} />
+                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} readOnly={!!socio} className={getInputClasses('apellido')} />
+                  
+                  <div className="md:col-span-2 relative">
+                    <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('email')} />
+                    {errores.email && <span className="text-red-400 text-[10px] absolute -bottom-5 left-2">{errores.email}</span>}
+                  </div>
 
-                  <div className="md:col-span-2 mb-2 mt-6"><span className="text-[10px] uppercase tracking-widest text-brand-orange font-bold">Domicilio de Facturación / Envío</span></div>
-                  <input required type="text" name="direccion" placeholder="Calle, Número y Piso *" value={formData.direccion} onChange={handleInputChange} className={`${inputClases} md:col-span-2`} />
-                  <input required type="text" name="ciudad" placeholder="Ciudad / Provincia *" value={formData.ciudad} onChange={handleInputChange} className={inputClases} />
-                  <input required type="text" name="cp" placeholder="Código Postal *" value={formData.cp} onChange={handleInputChange} className={inputClases} />
+                  <div className="md:col-span-2 relative mt-2">
+                    <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555 sin espacios) *" value={formData.telefono} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('telefono')} />
+                    {errores.telefono && <span className="text-red-400 text-[10px] absolute -bottom-5 left-2">{errores.telefono}</span>}
+                  </div>
+
+                  <div className="md:col-span-2 mb-2 mt-8"><span className="text-[10px] uppercase tracking-widest text-brand-orange font-bold">Domicilio de Facturación / Envío</span></div>
+                  <input required type="text" name="direccion" placeholder="Calle, Número y Piso *" value={formData.direccion} onChange={handleInputChange} className={`${getInputClasses('direccion')} md:col-span-2`} />
+                  <input required type="text" name="ciudad" placeholder="Ciudad / Provincia *" value={formData.ciudad} onChange={handleInputChange} className={getInputClasses('ciudad')} />
+                  <input required type="text" name="cp" placeholder="Código Postal *" value={formData.cp} onChange={handleInputChange} className={getInputClasses('cp')} />
                 </div>
                 <button type="button" onClick={() => setActiveStep(2)} className="mt-10 bg-brand-white text-extra-black text-[10px] font-black uppercase tracking-[0.2em] px-10 py-5 hover:bg-brand-orange hover:text-brand-white transition-all shadow-md outline-none">Continuar a Entrega</button>
               </div>
@@ -266,7 +368,6 @@ export default function CheckoutSuscripcion() {
           </form>
         </div>
         
-        {/* RESUMEN LATERAL */}
         <div className="hidden md:block bg-extra-black/40 backdrop-blur-md border-l border-light-blue/10">
           <div className="sticky top-0 h-screen flex flex-col p-10 overflow-y-auto">
             <h3 className="font-playfair italic text-3xl text-brand-white mb-8">Tu Membresía</h3>

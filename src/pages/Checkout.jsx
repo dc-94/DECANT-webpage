@@ -22,7 +22,6 @@ export default function Checkout() {
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 👉 CORRECCIÓN BUG #5: Candado atómico para evitar el doble submit
   const submitLock = useRef(false);
 
   const [formData, setFormData] = useState({
@@ -31,6 +30,9 @@ export default function Checkout() {
     pago: 'transferencia'
   });
   
+  // 👉 UX/SEGURIDAD: Estado para manejar errores visuales de validación
+  const [errores, setErrores] = useState({ email: '', telefono: '' });
+
   const [inputSocio, setInputSocio] = useState('');
   const [mensajeSocio, setMensajeSocio] = useState({ tipo: '', texto: '' });
 
@@ -83,9 +85,57 @@ export default function Checkout() {
   }, [socio, activeStep]);
 
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (e.target.name === 'email') {
+    let { name, value } = e.target;
+
+    // 👉 SEGURIDAD: Sanitización estricta por tipo de campo
+    if (name === 'email') {
+      value = value.replace(/[\r\n]+/g, ''); // Evita inyección CRLF
+    } else {
+      value = value.replace(/[<>{}|=]/g, ''); // Evita XSS y SSTI
+    }
+
+    setFormData({ ...formData, [name]: value });
+    
+    if (name === 'email') {
       setMensajeSocio({ tipo: '', texto: '' });
+    }
+    
+    // Limpiamos el error visual al reescribir
+    if (errores[name]) {
+      setErrores({ ...errores, [name]: '' });
+    }
+  };
+
+  // 👉 UX/SEGURIDAD: Validaciones onBlur
+  const handleBlur = async (e) => {
+    const { name, value } = e.target;
+    
+    if (name === 'email' && value.trim() !== '') {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(value)) {
+        setErrores(prev => ({ ...prev, email: 'Ingresa un formato de correo válido.' }));
+        return;
+      }
+
+      // Si no es socio validado, comprobamos si el correo ya existe en BD
+      if (!socio) {
+        try {
+          const docRef = doc(db, 'clientes', value.toLowerCase().trim());
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setErrores(prev => ({ ...prev, email: 'Este correo ya es socio. Por favor, ingresa tu PIN en el Paso 3 para mantener tus beneficios.' }));
+          }
+        } catch (error) {
+          console.error("Error verificando email:", error);
+        }
+      }
+    }
+    
+    if (name === 'telefono' && value.trim() !== '') {
+      const numeros = value.replace(/\D/g, ''); 
+      if (numeros.length < 10 || numeros.length > 15) {
+        setErrores(prev => ({ ...prev, telefono: 'Ingresa un número válido con código de área (10-15 dígitos).' }));
+      }
     }
   };
 
@@ -104,6 +154,8 @@ export default function Checkout() {
       setMensajeSocio({ tipo: 'error', texto: resultado.error });
     } else {
       setMensajeSocio({ tipo: 'success', texto: '¡Bienvenido! Beneficios aplicados a tu carrito.' });
+      // Limpiamos errores de email si los había, porque ahora está validado
+      setErrores(prev => ({ ...prev, email: '' }));
     }
   };
 
@@ -146,10 +198,14 @@ export default function Checkout() {
   const handleCheckout = async (e) => {
     e.preventDefault();
 
-    // 👉 CORRECCIÓN BUG #5: Verificamos el candado atómico. Si está cerrado, ignoramos el clic.
+    // 👉 Bloqueamos si hay errores de validación
+    if (errores.email || errores.telefono) {
+      alert("Por favor, corrige los errores en el formulario antes de continuar.");
+      return;
+    }
+
     if (submitLock.current) return;
     
-    // Cerramos el candado inmediatamente y actualizamos la UI
     submitLock.current = true;
     setIsProcessing(true);
 
@@ -162,7 +218,6 @@ export default function Checkout() {
 
       const pinSeguro = socio ? socio.pin : '';
 
-      // 👉 CORRECCIÓN SEGURIDAD #2: Usamos la variable de entorno
       const apiUrl = import.meta.env.VITE_API_CHECKOUT_URL;
       
       if (!apiUrl) {
@@ -189,7 +244,7 @@ export default function Checkout() {
           if (removeFromCart) {
             removeFromCart(result.itemAgotadoId); 
           }
-          submitLock.current = false; // Abrimos el candado si hubo error recuperable
+          submitLock.current = false;
           setIsProcessing(false);
           return;
         }
@@ -214,18 +269,16 @@ export default function Checkout() {
       }));
 
       clearCart();
-      // Nota: No abrimos el candado aquí porque estamos navegando fuera de la pantalla
       navigate('/gracias');
 
     } catch (error) {
       console.error("Error en el Checkout Seguro:", error);
       alert(error.message || "Hubo un problema al procesar tu pedido. Por favor, intenta nuevamente.");
-      submitLock.current = false; // Abrimos el candado si falló el proceso
+      submitLock.current = false; 
       setIsProcessing(false);
     }
   };
 
-  // 👉 ESTADO VACÍO ELEGANTE CON BOTÓN DE REDIRECCIÓN
   if (cart.length === 0) {
     return (
       <div className="min-h-screen bg-[#F7F5F0] flex flex-col items-center justify-center font-poppins text-dark-blue p-6 text-center">
@@ -245,8 +298,21 @@ export default function Checkout() {
     );
   }
 
-  const inputClases = "w-full bg-white border border-dark-blue/10 px-4 py-4 text-sm outline-none focus:border-brand-orange text-dark-blue placeholder-dark-blue/40 transition-all focus:shadow-sm";
-  const inputReadonlyClases = "w-full bg-slate-50 border border-dark-blue/5 px-4 py-4 text-sm text-dark-blue/60 cursor-not-allowed select-none outline-none";
+  // 👉 UX: Clases dinámicas adaptadas al tema claro
+  const getInputClasses = (fieldName) => {
+    let base = "w-full px-4 py-4 text-sm outline-none transition-all focus:shadow-sm";
+    
+    if (socio) {
+      base += " bg-slate-50 border border-dark-blue/5 text-dark-blue/60 cursor-not-allowed select-none";
+      return base;
+    }
+
+    const status = errores[fieldName] 
+      ? "bg-red-50 border border-red-400 text-dark-blue placeholder-red-300" 
+      : "bg-white border border-dark-blue/10 focus:border-brand-orange text-dark-blue placeholder-dark-blue/40";
+      
+    return `${base} ${status}`;
+  };
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-dark-blue font-poppins selection:bg-brand-orange selection:text-white flex flex-col">
@@ -296,12 +362,20 @@ export default function Checkout() {
               </div>
               <div className={`overflow-hidden transition-all duration-500 ${activeStep === 1 ? 'max-h-[800px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} readOnly={!!socio} className={socio ? inputReadonlyClases : inputClases} />
-                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} readOnly={!!socio} className={socio ? inputReadonlyClases : inputClases} />
-                  <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} readOnly={!!socio} className={`${socio ? inputReadonlyClases : inputClases} md:col-span-2`} />
-                  <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555) *" value={formData.telefono} onChange={handleInputChange} readOnly={!!socio} className={`${socio ? inputReadonlyClases : inputClases} md:col-span-2`} />
+                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} readOnly={!!socio} className={getInputClasses('nombre')} />
+                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} readOnly={!!socio} className={getInputClasses('apellido')} />
+                  
+                  <div className="md:col-span-2 relative">
+                    <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('email')} />
+                    {errores.email && <span className="text-red-500 text-[10px] absolute -bottom-5 left-2">{errores.email}</span>}
+                  </div>
+
+                  <div className="md:col-span-2 relative mt-2">
+                    <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555 sin espacios) *" value={formData.telefono} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('telefono')} />
+                    {errores.telefono && <span className="text-red-500 text-[10px] absolute -bottom-5 left-2">{errores.telefono}</span>}
+                  </div>
                 </div>
-                <button type="button" onClick={() => setActiveStep(2)} className="mt-8 bg-dark-blue text-white text-[10px] font-black uppercase tracking-[0.2em] px-10 py-5 hover:bg-brand-orange transition-all shadow-md outline-none">Continuar a Entrega</button>
+                <button type="button" onClick={() => setActiveStep(2)} className="mt-10 bg-dark-blue text-white text-[10px] font-black uppercase tracking-[0.2em] px-10 py-5 hover:bg-brand-orange transition-all shadow-md outline-none">Continuar a Entrega</button>
               </div>
             </div>
 
@@ -331,9 +405,9 @@ export default function Checkout() {
                 </div>
                 {formData.envio === 'convenir' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mt-8 pt-8 border-t border-dark-blue/10 animate-in fade-in slide-in-from-top-2">
-                    <input required type="text" name="direccion" placeholder="Calle, Número y Piso *" value={formData.direccion} onChange={handleInputChange} className={`${inputClases} md:col-span-2`} />
-                    <input required type="text" name="ciudad" placeholder="Ciudad / Provincia *" value={formData.ciudad} onChange={handleInputChange} className={inputClases} />
-                    <input required type="text" name="cp" placeholder="Código Postal *" value={formData.cp} onChange={handleInputChange} className={inputClases} />
+                    <input required type="text" name="direccion" placeholder="Calle, Número y Piso *" value={formData.direccion} onChange={handleInputChange} className={`${getInputClasses('direccion')} md:col-span-2`} />
+                    <input required type="text" name="ciudad" placeholder="Ciudad / Provincia *" value={formData.ciudad} onChange={handleInputChange} className={getInputClasses('ciudad')} />
+                    <input required type="text" name="cp" placeholder="Código Postal *" value={formData.cp} onChange={handleInputChange} className={getInputClasses('cp')} />
                   </div>
                 )}
                 <button type="button" onClick={() => setActiveStep(3)} className="mt-8 bg-dark-blue text-white text-[10px] font-black uppercase tracking-[0.2em] px-10 py-5 hover:bg-brand-orange transition-all shadow-md outline-none">Continuar al Pago</button>
@@ -383,7 +457,6 @@ export default function Checkout() {
                   </label>
                 </div>
                 
-                {/* 👉 Se mantiene la propiedad disabled para estilos, pero la seguridad la da useRef */}
                 <button disabled={isProcessing} type="submit" className="w-full bg-brand-orange text-white text-[12px] font-black uppercase tracking-[0.2em] px-8 py-6 hover:bg-dark-blue transition-all shadow-[0_10px_30px_rgba(217,119,87,0.2)] flex items-center justify-center gap-3 outline-none disabled:opacity-50">
                   {isProcessing ? 'Procesando...' : 'Confirmar Compra'} <span className="text-xl leading-none font-light">→</span>
                 </button>
