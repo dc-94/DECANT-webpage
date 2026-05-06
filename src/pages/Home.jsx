@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+// 👉 Importamos herramientas de consulta de Firestore
+import { doc, onSnapshot, collection, query, orderBy, limit, where } from 'firebase/firestore';
 import SEO from '../components/public/SEO'; 
 import MainNavbar from "../components/layout/MainNavbar";
 import ProductCard from "../components/public/ProductCard"; 
@@ -16,11 +17,13 @@ const TrustIcons = [
 ];
 
 export default function Home() {
-  const { productos, menuTree } = useCatalog(); 
+  // 👉 Traemos fetchProductosQuery del contexto
+  const { productos, menuTree, fetchProductosQuery } = useCatalog(); 
   const [storefront, setStorefront] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // 1. Cargar configuración del Storefront
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'ajustes_storefront', 'home'), (docSnap) => {
       if (docSnap.exists()) setStorefront(docSnap.data());
@@ -28,6 +31,20 @@ export default function Home() {
     });
     return () => unsubscribe();
   }, []);
+
+  // 👉 NUEVA LÓGICA: Cargar productos destacados y suscripciones para el Home
+  useEffect(() => {
+    // Solo pedimos datos si no los tenemos en el caché local
+    if (productos.length === 0) {
+      // Pedimos los 10 productos más recientes (Novedades)
+      const qNovedades = query(collection(db, 'productos'), orderBy('createdAt', 'desc'), limit(10));
+      fetchProductosQuery(qNovedades);
+
+      // Pedimos las suscripciones para los banners del Club
+      const qSuscripciones = query(collection(db, 'productos'), where('categoria', '==', 'Suscripciones'));
+      fetchProductosQuery(qSuscripciones);
+    }
+  }, [fetchProductosQuery, productos.length]);
 
   useEffect(() => {
     const slides = storefront?.heroSlides || [];
@@ -39,11 +56,9 @@ export default function Home() {
   const categoriasMain = Object.keys(menuTree || {});
   const bentoItems = useMemo(() => {
     if (categoriasMain.length === 0) return [];
-    
     const spans = ['col-span-2 row-span-2', 'col-span-1 row-span-1', 'col-span-2 row-span-1', 'col-span-1 row-span-2'];
     let items = categoriasMain.map((cat, i) => ({ type: 'cat', cat, span: spans[i % spans.length], sortKey: Math.random() }));
     for (let i = 0; i < 2; i++) { items.push({ type: 'empty', id: `empty-${i}`, span: 'col-span-1 row-span-1', sortKey: Math.random() }); }
-
     return items.sort((a, b) => a.sortKey - b.sortKey);
   }, [categoriasMain]);
 
@@ -51,23 +66,15 @@ export default function Home() {
   const planDescorche = productosSuscripcion.find(p => p.nombre && p.nombre.toLowerCase().includes('descorche'));
   const planTerruno = productosSuscripcion.find(p => p.nombre && (p.nombre.toLowerCase().includes('terruño') || p.nombre.toLowerCase().includes('terruno')));
 
-  // 👉 LA MAGIA: Elegir una receta al azar cuando carga
   const deliAleatorio = useMemo(() => {
     if (!storefront) return {};
-    
-    // Si existe el array nuevo 'listaDeli' con elementos
     if (storefront.listaDeli && storefront.listaDeli.length > 0) {
       const indiceAzar = Math.floor(Math.random() * storefront.listaDeli.length);
       return storefront.listaDeli[indiceAzar];
     } 
-    // Si todavía usan el formato viejo 'seccionDeli'
-    else if (storefront.seccionDeli) {
-      return storefront.seccionDeli;
-    }
-    
+    else if (storefront.seccionDeli) { return storefront.seccionDeli; }
     return {};
   }, [storefront]);
-
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-poppins text-[10px] font-black uppercase tracking-widest text-brand-orange animate-pulse">Cargando...</div>;
 
@@ -87,9 +94,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-neutral-white overflow-x-hidden font-poppins">
-      <SEO 
-        title="Inicio" 
-        description="Decant - Club de vinos y tienda exclusiva. Descubre etiquetas de partidas limitadas seleccionadas por sommeliers."/>  
+      <SEO title="Inicio" description="Decant - Club de vinos y tienda exclusiva. Descubre etiquetas de partidas limitadas seleccionadas por sommeliers."/>  
       <MainNavbar />
 
       {/* HERO SECTION */}
@@ -121,13 +126,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* === BENTO BOX CATEGORÍAS === */}
+      {/* BENTO BOX CATEGORÍAS */}
       {bentoItems.length > 0 && (
         <section className="w-full bg-extra-black p-2 md:p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[200px] md:auto-rows-[250px] gap-2 md:gap-4 grid-flow-dense">
             {bentoItems.map((item) => {
               if (item.type === 'empty') return <div key={item.id} className={`${item.span} bg-transparent border border-white/5`}></div>;
-              
               return (
                 <Link key={item.cat} to={`/shop/${item.cat}`} className={`group relative overflow-hidden block ${item.span} bg-dark-blue`}>
                   {imagenesCat[item.cat] && (
@@ -184,11 +188,9 @@ export default function Home() {
                     ) : (
                       <span className="font-poppins text-light-blue/50 text-sm font-black tracking-widest mb-6 block">Próximamente</span>
                     )}
-
                     <p className="text-xs text-light-blue leading-relaxed mb-6 whitespace-pre-wrap flex-grow">
                       {plan.planData?.descripcion || "Ideal para descubrir nuevas cepas y bodegas boutique asegurando siempre una mesa bien servida."}
                     </p>
-                    
                     {plan.logosBodegas && plan.logosBodegas.length > 0 && (
                       <div className="flex flex-wrap gap-4 items-center mt-auto pt-6 border-t border-light-blue/10 grayscale opacity-60">
                         {plan.logosBodegas.map((logo, i) => (
@@ -221,11 +223,9 @@ export default function Home() {
                <div className="absolute top-0 right-0 text-[15rem] opacity-5 select-none pointer-events-none -z-10 leading-none -mt-10 -mr-10">
                   {deliAleatorio.tema === 'cafe' ? '☕' : '🌿'}
                </div>
-               
                <span className="text-brand-orange font-poppins text-[14px] font-bold uppercase tracking-[0.4em] mb-4 block">Deli & Tips</span>
                <h2 className="text-dark-blue font-playfair font-black uppercase text-3xl md:text-5xl italic mb-8 leading-tight">{deliAleatorio.tituloReceta}</h2>
                <div className="font-poppins text-sm text-dark-blue/70 leading-relaxed mb-10 whitespace-pre-wrap">{deliAleatorio.textoReceta}</div>
-               
                <div className="flex flex-col sm:flex-row gap-4">
                  <Link to={deliAleatorio.linkProducto || "/shop/deli"} className="bg-extra-black text-brand-white px-10 py-4 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-brand-orange transition-all text-center outline-none">
                     Comprar Ingredientes

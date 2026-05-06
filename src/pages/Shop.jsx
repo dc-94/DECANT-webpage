@@ -7,19 +7,28 @@ import ProductCard from '../components/public/ProductCard';
 import ProductFilter from '../components/public/ProductFilter';
 import Footer from '../components/layout/Footer';
 
-// Constantes de paginación visual
-const ITEMS_POR_PAGINA = 40;
+// 👉 Nuevas importaciones para paginación de Firebase
+import { collection, query, where, orderBy, limit, startAfter } from 'firebase/firestore';
+import { db } from '../config/firebase';
+
+const ITEMS_POR_PAGINA = 20;
 const ITEMS_AL_CARGAR_MAS = 20;
 
 export default function Shop() {
   const { categoria, subcategoria, cepa } = useParams();
-  const { productos, cargando } = useCatalog();
+  
+  // 👉 Traemos la nueva función fetchProductosQuery desde nuestro Contexto
+  const { productos, cargando, fetchProductosQuery } = useCatalog();
   
   const [orden, setOrden] = useState('recientes');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  
   const [visibleCount, setVisibleCount] = useState(ITEMS_POR_PAGINA);
   
+  // 👉 Estados para controlar la paginación con Firebase
+  const [lastDoc, setLastDoc] = useState(null);
+  const [hasMoreServer, setHasMoreServer] = useState(true);
+  const [cargandoQuery, setCargandoQuery] = useState(false);
+
   const [filtros, setFiltros] = useState({
     categoria: [],
     subcategoria: [],
@@ -32,7 +41,58 @@ export default function Shop() {
   const subFormat = capitalize(subcategoria);
   const cepaFormat = capitalize(cepa);
 
-  // 1. FILTRADO POR URL (Categoría > Subcategoría > Cepa) Y EXCLUSIÓN DE SUSCRIPCIONES
+  // 👉 EL MOTOR DE BÚSQUEDA: Pide bloques de productos a Firebase
+  const cargarDatosServidor = async (reiniciar = false) => {
+    setCargandoQuery(reiniciar);
+    let constraints = [];
+
+    // Filtramos directamente en la base de datos para no traer productos innecesarios
+    if (categoria) constraints.push(where('categoria', '==', catFormat));
+    if (subcategoria) constraints.push(where('subcategoria', '==', subFormat));
+    if (cepa) constraints.push(where('varietal', '==', cepaFormat));
+
+    // Si no hay filtros de categoría específicos, ordenamos por fecha.
+    // (Firebase exige índices compuestos si mezclamos where y orderBy, así lo evitamos).
+    if (constraints.length === 0) {
+      constraints.push(orderBy('createdAt', 'desc'));
+    }
+
+    // Paginación: le decimos a Firebase desde dónde arrancar
+    if (!reiniciar && lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+
+    // Límite de documentos por petición para cuidar la facturación
+    constraints.push(limit(reiniciar ? ITEMS_POR_PAGINA : ITEMS_AL_CARGAR_MAS));
+
+    // Ejecutamos la consulta a través de nuestro contexto (para que se guarden en caché)
+    const q = query(collection(db, 'productos'), ...constraints);
+    const result = await fetchProductosQuery(q);
+
+    if (result.docs.length > 0) {
+      setLastDoc(result.docs[result.docs.length - 1]);
+    }
+
+    // Verificamos si Firebase se quedó sin productos para esta categoría
+    if (result.docs.length < (reiniciar ? ITEMS_POR_PAGINA : ITEMS_AL_CARGAR_MAS)) {
+      setHasMoreServer(false);
+    } else {
+      setHasMoreServer(true);
+    }
+
+    setCargandoQuery(false);
+  };
+
+  // Disparamos la búsqueda inicial cada vez que cambia la URL
+  useEffect(() => {
+    setLastDoc(null);
+    setHasMoreServer(true);
+    setVisibleCount(ITEMS_POR_PAGINA);
+    cargarDatosServidor(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoria, subcategoria, cepa]);
+
+  // 1. FILTRADO POR URL (Lee desde el caché unificado)
   const productosContextoURL = useMemo(() => {
     let base = [...(productos || [])];
     
@@ -45,7 +105,7 @@ export default function Shop() {
     return base;
   }, [productos, categoria, subcategoria, cepa]);
 
-  // 2. FILTRADO DEL SIDEBAR Y ORDENAMIENTO (Toda la data)
+  // 2. FILTRADO DEL SIDEBAR Y ORDENAMIENTO
   const productosFiltradosTotal = useMemo(() => {
     let filtrados = [...(productosContextoURL || [])];
 
@@ -75,15 +135,16 @@ export default function Shop() {
     return filtrados;
   }, [productosContextoURL, filtros, orden]);
 
-   const productosMostrados = useMemo(() => {
+  const productosMostrados = useMemo(() => {
     return productosFiltradosTotal.slice(0, visibleCount);
   }, [productosFiltradosTotal, visibleCount]);
 
+  // Reseteamos el contador visual local si el usuario cambia el orden o un filtro del sidebar
   useEffect(() => {
-    setVisibleCount(40);
-  }, [categoria, subcategoria, cepa, filtros, orden]);
+    setVisibleCount(ITEMS_POR_PAGINA);
+  }, [filtros, orden]);
 
-  // 4. GENERADOR DE 4 RECOMENDADOS ALEATORIOS GLOBALES
+  // 4. GENERADOR DE 4 RECOMENDADOS (Saca provecho del caché)
   const recomendadosAleatorios = useMemo(() => {
     if (!productos || productos.length === 0) return [];
     const sinSuscripciones = productos.filter(p => !p.categoria || !p.categoria.toLowerCase().includes('suscripci'));
@@ -97,14 +158,27 @@ export default function Shop() {
     return 'Catálogo Completo';
   };
 
-  // PANTALLA DE CARGA
-  if (cargando) {
+  // 👉 Nueva lógica combinada para mostrar el botón "Cargar Más"
+  const mostrarBotonCargarMas = visibleCount < productosFiltradosTotal.length || hasMoreServer;
+
+  const handleCargarMas = () => {
+    setVisibleCount(prev => prev + ITEMS_AL_CARGAR_MAS);
+    // Si agotamos los que tenemos en caché local, le pedimos otra tanda a Firebase
+    if (hasMoreServer) {
+      cargarDatosServidor(false);
+    }
+  };
+
+  // PANTALLA DE CARGA (Solo bloquea si el caché local está completamente vacío)
+  const isInitialLoad = (cargando || cargandoQuery) && productosMostrados.length === 0;
+
+  if (isInitialLoad) {
     return (
       <div className="min-h-screen bg-neutral-white flex flex-col">
         <MainNavbar />
         <div className="flex-1 flex items-center justify-center">
           <p className="font-poppins text-brand-orange uppercase tracking-[0.3em] text-[10px] animate-pulse font-black">
-            Descorchando la cava...
+            Abriendo la cava...
           </p>
         </div>
       </div>
@@ -114,10 +188,10 @@ export default function Shop() {
   return (
     <div className="min-h-screen bg-neutral-white overflow-x-hidden">
       <MainNavbar />
-<SEO 
-  title={getTituloPagina()} 
-  description="Explora nuestra cava. Vinos de autor, partidas limitadas y selecciones exclusivas listas para llegar a tu copa."
-/>
+      <SEO 
+        title={getTituloPagina()} 
+        description="Explora nuestra cava. Vinos de autor, partidas limitadas y selecciones exclusivas listas para llegar a tu copa."
+      />
       <div className="w-full border-b border-dark-blue/10 pt-28 lg:pt-36 flex-shrink-0 relative z-20">
         <div className="max-w-[95rem] mx-auto px-6 lg:px-20 pb-4 flex items-center gap-1.5 text-[10px] font-poppins font-black uppercase tracking-[0.2em] text-dark-blue/40 flex-wrap">
           <Link to="/" className="hover:text-brand-orange transition-colors">Home</Link>
@@ -208,19 +282,21 @@ export default function Shop() {
                   ))}
                 </div>
 
-                {/* 👉 BOTÓN CARGAR MÁS */}
-                {visibleCount < productosFiltradosTotal.length && (
+                {/* 👉 BOTÓN CARGAR MÁS INTELIGENTE */}
+                {mostrarBotonCargarMas && (
                   <div className="mt-16 mb-8 text-center flex justify-center">
                     <button
-                      onClick={() => setVisibleCount(prev => prev + ITEMS_AL_CARGAR_MAS)}
+                      onClick={handleCargarMas}
                       className="group flex flex-col items-center gap-3 text-dark-blue hover:text-brand-orange transition-colors outline-none"
                     >
-                      <span className="font-poppins text-[10px] font-black uppercase tracking-widest bg-dark-blue/5 group-hover:bg-brand-orange/10 px-8 py-3 rounded-full transition-colors">
-                        Descorchar más etiquetas
+                      <span className="font-poppins text-[10px] font-black uppercase tracking-widest bg-dark-blue/5 group-hover:bg-brand-orange/10 px-8 py-3 rounded-full transition-colors flex items-center gap-2">
+                        {cargandoQuery ? 'Buscando en la Cava...' : 'Mostrar más etiquetas'}
                       </span>
-                      <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                      </svg>
+                      {!cargandoQuery && (
+                        <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
                     </button>
                   </div>
                 )}
@@ -232,7 +308,7 @@ export default function Shop() {
                   Preparando Selección
                 </h3>
                 <p className="font-poppins text-[10px] uppercase tracking-[0.2em] font-black text-light-blue mb-12 max-w-lg">
-                  Aún no hemos descorchado botellas en esta categoría. Mientras tanto, descubre estas joyas de nuestra cava:
+                  Aún no hemos contamos con productos en esta categoría. Mientras tanto, descubre estas joyas de nuestra cava:
                 </p>
 
                 {/* GRILLA DE 4 RECOMENDADOS */}

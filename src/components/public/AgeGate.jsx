@@ -38,7 +38,7 @@ export default function AgeGate() {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-blue/60 backdrop-blur-md px-4 transition-opacity duration-500">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-blue/6 backdrop-blur-sm px-4 transition-opacity duration-500">
       <div className="bg-brand-orange p-8 md:p-12 max-w-lg w-full text-center shadow-2xl flex flex-col items-center border border-white/10 relative overflow-hidden">
         <img src="/assets/brand/logo-white-T.png" alt="Decant" className="h-8 mb-8 object-contain" />
         <h2 className="text-3xl md:text-4xl font-playfair font-black italic text-brand-white mb-8 tracking-tight drop-shadow-sm">

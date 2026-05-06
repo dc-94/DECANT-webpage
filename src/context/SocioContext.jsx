@@ -1,16 +1,12 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore'; // Añadimos updateDoc
 
-// 1. Creamos el contexto
 const SocioContext = createContext();
 
-// Hook personalizado para usarlo fácilmente
 export const useSocio = () => useContext(SocioContext);
 
-// 2. El proveedor que envolverá nuestra App
 export const SocioProvider = ({ children }) => {
-  // Leemos la sesión guardada previamente (si existe)
   const [socio, setSocio] = useState(() => {
     const saved = sessionStorage.getItem('decant_socio');
     return saved ? JSON.parse(saved) : null;
@@ -18,7 +14,6 @@ export const SocioProvider = ({ children }) => {
   
   const [validando, setValidando] = useState(false);
 
-  // Guardamos la sesión automáticamente cuando el estado cambia
   useEffect(() => {
     if (socio) {
       sessionStorage.setItem('decant_socio', JSON.stringify(socio));
@@ -27,29 +22,40 @@ export const SocioProvider = ({ children }) => {
     }
   }, [socio]);
 
-  // Función principal de Login
   const loginSocio = async (email, pin) => {
     setValidando(true);
+    const ahora = Date.now();
+    const mensajeErrorGenerico = 'El correo electrónico o el PIN ingresados son incorrectos.';
+
     try {
       const emailLower = email.toLowerCase().trim();
-      // Buscamos directamente el documento usando el email como ID
       const docRef = doc(db, 'clientes', emailLower);
       const docSnap = await getDoc(docRef);
 
-      // 👉 CORRECCIÓN SEGURIDAD #1: Mensaje genérico para evitar enumeración de emails
-      const mensajeErrorGenerico = 'El correo electrónico o el PIN ingresados son incorrectos.';
-
       if (docSnap.exists()) {
         const data = docSnap.data();
+
+        // 👉 SEGURIDAD #6: Verificar si la cuenta está bloqueada temporalmente
+        if (data.bloqueadoHasta && ahora < data.bloqueadoHasta) {
+          const minutosRestantes = Math.ceil((data.bloqueadoHasta - ahora) / 60000);
+          return { 
+            success: false, 
+            error: `Cuenta bloqueada por seguridad. Intenta nuevamente en ${minutosRestantes} minutos.` 
+          };
+        }
         
-        // Verificamos el PIN (contraseña)
+        // Verificamos el PIN
         if (data.numeroCliente === pin) {
-          
-          // Verificamos la membresía
+          // Si el login es correcto, verificamos la membresía
           if (data.badge === 'Descorche' || data.badge === 'Terruño') {
             const porcentaje = data.badge === 'Terruño' ? 0.20 : 0.15;
             
-            // Guardamos al socio en el estado global
+            // 👉 ÉXITO: Limpiamos los intentos fallidos en la base de datos
+            await updateDoc(docRef, {
+              intentosFallidos: 0,
+              bloqueadoHasta: null
+            });
+
             setSocio({ 
               email: emailLower, 
               pin, 
@@ -62,11 +68,20 @@ export const SocioProvider = ({ children }) => {
             return { success: false, error: 'No tienes una membresía VIP activa en este momento.' };
           }
         } else {
-          // Falló el PIN: mostramos error genérico
+          // 👉 PIN INCORRECTO: Gestionamos el contador de intentos
+          const nuevosIntentos = (data.intentosFallidos || 0) + 1;
+          const updates = { intentosFallidos: nuevosIntentos };
+
+          if (nuevosIntentos >= 5) {
+            // Bloqueo por 15 minutos (900,000 ms)
+            updates.bloqueadoHasta = ahora + 900000;
+          }
+
+          await updateDoc(docRef, updates);
           return { success: false, error: mensajeErrorGenerico };
         }
       } else {
-        // Falló el email (no existe): mostramos el MISMO error genérico
+        // El email no existe: mantenemos el error genérico
         return { success: false, error: mensajeErrorGenerico };
       }
     } catch (error) {

@@ -9,8 +9,6 @@ import ProductCard from '../components/public/ProductCard';
 import DynamicGuide from '../components/public/DynamicGuide';
 import Footer from '../components/layout/Footer';
 import { useSocio } from '../context/SocioContext';
-
-// 👉 Importamos nuestro motor de precios
 import { usePricingEngine } from '../hooks/usePricingEngine';
 
 const ShoppingBagIcon = ({ className }) => (
@@ -21,13 +19,32 @@ const ShoppingBagIcon = ({ className }) => (
 
 export default function ProductDetail() {
   const { id } = useParams();
-  const { productos, cargando } = useCatalog();
+  
+  // 👉 Traemos fetchProductoById desde el catálogo inteligente
+  const { productos, fetchProductoById } = useCatalog();
   const { addToCart } = useCart();
   const { socio } = useSocio(); 
   const [cantidad, setCantidad] = useState(1);
 
-  const producto = productos.find(p => p.slug === id || p.id === id);
+  // 👉 Estados locales para manejar la carga del producto individual
+  const [producto, setProducto] = useState(null);
+  const [cargandoProducto, setCargandoProducto] = useState(true);
 
+  // 👉 Efecto para buscar el producto cuando cambia la URL
+  useEffect(() => {
+    const buscarProducto = async () => {
+      setCargandoProducto(true);
+      // Busca en caché, si no está, va a Firebase por 1 solo documento
+      const data = await fetchProductoById(id);
+      setProducto(data);
+      setCargandoProducto(false);
+      window.scrollTo(0, 0);
+    };
+
+    buscarProducto();
+  }, [id, fetchProductoById]);
+
+  // Los recomendados se nutren del caché actual para no generar lecturas extra
   const productosRelacionados = useMemo(() => {
     if (!productos || !producto) return [];
     const catalogoLimpio = productos.filter(p => p.id !== producto.id && !p.categoria?.toLowerCase().includes('script') && p.label?.toLowerCase() !== 'suscripción');
@@ -37,18 +54,16 @@ export default function ProductDetail() {
     return relacionados.sort(() => 0.5 - Math.random()).slice(0, 3);
   }, [productos, producto]);
 
-  useEffect(() => { window.scrollTo(0, 0); }, [id]);
-
-  // 👉 ARQUITECTURA CLEAN CODE: Llamamos a nuestro Hook
-  // Esto debe ir antes de los 'if (cargando)' para respetar las reglas de los hooks de React.
+  // Hook de precios VIP
   const { 
     precioBase, 
     precioEfectivo, 
     descuentoVIPAplicado 
   } = usePricingEngine(producto, socio);
 
-  if (cargando) return <div className="min-h-screen flex items-center justify-center bg-neutral-white font-poppins text-[10px] tracking-[0.4em] uppercase">Cargando etiqueta...</div>;
-  if (!producto) return <div className="min-h-screen flex items-center justify-center bg-neutral-white"><Link to="/shop" className="font-poppins uppercase tracking-widest text-[10px] border-b border-dark-blue">Volver al Shop</Link></div>;
+  // 👉 Pantallas de carga y error manejadas con el estado local
+  if (cargandoProducto) return <div className="min-h-screen flex items-center justify-center bg-neutral-white font-poppins text-[10px] tracking-[0.4em] uppercase">Cargando etiqueta...</div>;
+  if (!producto) return <div className="min-h-screen flex items-center justify-center bg-neutral-white"><Link to="/shop" className="font-poppins uppercase tracking-widest text-[10px] border-b border-dark-blue hover:text-brand-orange transition-colors">Volver al Shop</Link></div>;
 
   const precioAnterior = (precioBase > precioEfectivo) ? precioBase : null;
   const mostrarLabelNormal = !descuentoVIPAplicado && (producto.precioBase > producto.precioFinal) && producto.mostrarDescuento && producto.descuentoNombre;
@@ -180,7 +195,7 @@ export default function ProductDetail() {
         </section>
       )}
 
-      <DynamicGuide key={producto.id} categoria={producto.categoria} />    
+      <DynamicGuide key={producto?.id} categoria={producto?.categoria} />    
       <Footer />  
     </div>
   );
