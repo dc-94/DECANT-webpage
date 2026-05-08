@@ -1,10 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { 
-  collection, query, orderBy, onSnapshot, doc, deleteDoc, 
-  getDocs // 👉 Agregamos getDocs
-} from 'firebase/firestore';
+
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 
 // IMPORTACIONES DE DRAWERS
@@ -59,19 +57,38 @@ export default function AdminVentas() {
     }), [pedidos, busqueda]
   );
 
-  const handleEliminarVenta = async (pedidoId) => {
-    const primeraConfirmacion = window.confirm("⚠️ ¿Estás seguro de querer eliminar esta venta?");
+ const handleEliminarVenta = async (pedidoId) => {
+    const primeraConfirmacion = window.confirm("⚠️ ATENCIÓN: ¿Estás seguro de querer eliminar esta venta?");
     if (!primeraConfirmacion) return;
-    const segundaConfirmacion = window.confirm("🚨 Acción irreversible. ¿Borrar definitivamente?");
+
+    // Cambiamos el mensaje porque AHORA SÍ restaura el stock
+    const segundaConfirmacion = window.confirm("🚨 Esta acción eliminará el pedido y RESTAURARÁ el stock de los productos. ¿Proceder?");
     if (!segundaConfirmacion) return;
 
     try {
-      await deleteDoc(doc(db, 'pedidos', pedidoId));
+      const batch = writeBatch(db);
+
+      // 1. Recorremos el carrito del pedido para devolver el stock
+      if (pedidoSeleccionado && pedidoSeleccionado.cart) {
+        pedidoSeleccionado.cart.forEach(item => {
+          const prodRef = doc(db, 'productos', item.id);
+          batch.update(prodRef, { stock: increment(item.cantidad) });
+        });
+      }
+
+      // 2. Agregamos la eliminación del pedido al lote
+      const pedidoRef = doc(db, 'pedidos', pedidoId);
+      batch.delete(pedidoRef);
+
+      // 3. Ejecutamos todo de golpe
+      await batch.commit();
+
       setIsDetalleOpen(false);
       setPedidoSeleccionado(null);
-      alert("Venta eliminada.");
+      alert("Venta eliminada y stock restaurado correctamente.");
     } catch (error) {
-      alert("Error al eliminar la venta.");
+      console.error("Error al eliminar la venta:", error);
+      alert("Hubo un error al intentar eliminar la venta y restaurar el stock.");
     }
   };
 

@@ -2,16 +2,15 @@ import { useState, useEffect } from 'react';
 import { db } from '../../config/firebase';
 import { 
   collection, query, where, getDocs, writeBatch, 
-  doc, increment, serverTimestamp, getDoc 
+  doc, increment, serverTimestamp 
 } from 'firebase/firestore';
 
-export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
+export default function DrawerNuevaVenta({ isOpen, onClose, productos = [] }) {
   const [cargando, setCargando] = useState(false);
-  const [paso, setPaso] = useState(1); // 1: Identificación, 2: Formulario Nuevo, 3: Carrito
+  const [paso, setPaso] = useState(1); 
   const [busquedaSocio, setBusquedaSocio] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   
-  // Formulario Nuevo Cliente
   const [nuevoCliente, setNuevoCliente] = useState({
     nombre: '', apellido: '', email: '', telefono: '',
     fechaNacimiento: '', tipo: 'Consumidor Final', dni: '', cuit: '',
@@ -20,9 +19,62 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
 
   const [items, setItems] = useState([]);
   const [busquedaProd, setBusquedaProd] = useState('');
-  const [metodoPago, setMetodoPago] = useState('Transferencia');
+  
+  // Estados para Búsqueda y Teclado
+  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+  const [indiceSeleccionado, setIndiceSeleccionado] = useState(-1);
 
-  // --- LÓGICA DE PIN ALEATORIO ÚNICO ---
+  // Estados para Pagos
+  const [metodoPago, setMetodoPago] = useState('Transferencia');
+  const [nroComprobante, setNroComprobante] = useState('');
+
+  // --- EFECTO: BÚSQUEDA HÍBRIDA SOBRE ÍNDICE DE SERVIDOR ---
+  useEffect(() => {
+    const realizarBusqueda = () => {
+      const term = busquedaProd.trim().toLowerCase();
+      if (term.length < 2) {
+        setResultadosBusqueda([]);
+        setIndiceSeleccionado(-1);
+        setBuscando(false);
+        return;
+      }
+
+      setBuscando(true);
+      const encontrados = productos.filter(p => 
+        p.nombre.toLowerCase().includes(term)
+      );
+      
+      setResultadosBusqueda(encontrados);
+      setIndiceSeleccionado(-1);
+      setBuscando(false);
+    };
+
+    const delay = setTimeout(realizarBusqueda, 600); 
+    return () => clearTimeout(delay);
+  }, [busquedaProd, productos]);
+
+  // --- NAVEGACIÓN POR TECLADO ---
+  const handleKeyDown = (e) => {
+    if (resultadosBusqueda.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceSeleccionado(prev => (prev < resultadosBusqueda.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceSeleccionado(prev => (prev > 0 ? prev - 1 : 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (indiceSeleccionado >= 0 && indiceSeleccionado < resultadosBusqueda.length) {
+        agregarProducto(resultadosBusqueda[indiceSeleccionado]);
+      } else if (resultadosBusqueda.length === 1) {
+        agregarProducto(resultadosBusqueda[0]);
+      }
+    }
+  };
+
+  // --- LÓGICA DE PIN ---
   const generarPinUnico = async () => {
     let pin = '';
     let existe = true;
@@ -33,16 +85,6 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
       if (snap.empty) existe = false;
     }
     return pin;
-  };
-
-  // --- VALIDACIÓN DE EDAD (18+) ---
-  const esMayorDeEdad = (fecha) => {
-    const hoy = new Date();
-    const cumple = new Date(fecha);
-    let edad = hoy.getFullYear() - cumple.getFullYear();
-    const m = hoy.getMonth() - cumple.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < cumple.getDate())) edad--;
-    return edad >= 18;
   };
 
   const buscarSocio = async () => {
@@ -60,14 +102,11 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
   };
 
   const handleRegistroNuevo = async () => {
-    if (!nuevoCliente.nombre || !nuevoCliente.email || !nuevoCliente.fechaNacimiento) {
-      return alert("Complete los campos obligatorios.");
-    }
-    if (!esMayorDeEdad(nuevoCliente.fechaNacimiento)) {
-      return alert("El cliente debe ser mayor de 18 años por motivos legales.");
+    if (!nuevoCliente.nombre || !nuevoCliente.email) {
+      return alert("El nombre y el email son obligatorios para el seguimiento.");
     }
     if (nuevoCliente.tipo === 'Responsable Inscripto' && !nuevoCliente.cuit) {
-      return alert("El CUIT es obligatorio para Responsable Inscripto.");
+      return alert("El CUIT es obligatorio para emitir factura a Responsable Inscripto.");
     }
     
     setCargando(true);
@@ -87,33 +126,41 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
       nombre: p.nombre, 
       cantidad: 1, 
       precioFinal: p.precioFinal, 
-      stockActual: p.stock }]);
+      stockActual: p.stock 
+    }]);
     setBusquedaProd('');
+    setResultadosBusqueda([]);
+    setIndiceSeleccionado(-1);
   };
 
   const actualizarItem = (id, campo, valor) => {
     setItems(items.map(i => i.id === id ? { ...i, [campo]: valor } : i));
   };
 
-  // 👉 CORRECCIÓN BUG #1: Usamos precioFinal en lugar de precioUnitario
-  const totalVenta = items.reduce((acc, i) => acc + (i.cantidad * i.precioFinal), 0);
+  // --- MOTOR DE CÁLCULOS ---
+  const subtotalVenta = items.reduce((acc, i) => acc + (i.cantidad * i.precioFinal), 0);
+  const aplicaDescuentoExtra = metodoPago === 'Transferencia' || metodoPago === 'Efectivo';
+  const descuentoMonto = aplicaDescuentoExtra ? subtotalVenta * 0.05 : 0;
+  const totalVenta = subtotalVenta - descuentoMonto;
+  const requiereComprobante = metodoPago === 'Transferencia' || metodoPago === 'MercadoPago';
 
+  // --- FINALIZAR ---
   const finalizarVenta = async () => {
     if (items.length === 0) return alert("Cargue al menos un producto.");
+    if (requiereComprobante && !nroComprobante.trim()) return alert("El número de comprobante/operación es obligatorio para este método de pago.");
+    
     setCargando(true);
     try {
       const batch = writeBatch(db);
       const emailCli = clienteSeleccionado.email.toLowerCase().trim();
-      
-      // 1. Guardar/Actualizar Cliente
       const cliRef = doc(db, 'clientes', emailCli);
+      
       if (clienteSeleccionado.id === 'NUEVO') {
         batch.set(cliRef, { ...clienteSeleccionado, totalCompras: 1 });
       } else {
         batch.update(cliRef, { totalCompras: increment(1) });
       }
 
-      // 2. Crear Pedido
       const orderRef = doc(collection(db, 'pedidos'));
       batch.set(orderRef, {
         tipo: 'OFFLINE',
@@ -126,14 +173,16 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
           direccion: clienteSeleccionado.direccion || 'Venta Local'
         },
         cart: items,
+        subtotal: subtotalVenta,
+        descuentoAplicado: descuentoMonto,
         totalFinal: totalVenta,
         metodoPago,
+        nroComprobante: nroComprobante.trim() || null,
         estado: 'Pagado',
         estadoLogistica: 'Entregado',
         createdAt: serverTimestamp()
       });
 
-      // 3. Descontar Stock
       items.forEach(i => {
         batch.update(doc(db, 'productos', i.id), { stock: increment(-i.cantidad) });
       });
@@ -147,7 +196,7 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
   };
 
   const resetStates = () => {
-    setPaso(1); setClienteSeleccionado(null); setItems([]); 
+    setPaso(1); setClienteSeleccionado(null); setItems([]); setBusquedaProd(''); setNroComprobante(''); setMetodoPago('Transferencia');
     setNuevoCliente({ nombre: '', apellido: '', email: '', telefono: '', fechaNacimiento: '', tipo: 'Consumidor Final', dni: '', cuit: '', direccion: '', numero: '', piso: '', ciudad: '', cp: '' });
   };
 
@@ -168,7 +217,6 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
 
         <div className="flex-1 overflow-y-auto p-8">
           
-          {/* PASO 1: BÚSQUEDA */}
           {paso === 1 && (
             <div className="space-y-6">
               <div className="flex flex-col gap-2">
@@ -185,7 +233,6 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
             </div>
           )}
 
-          {/* PASO 2: REGISTRO NUEVO */}
           {paso === 2 && (
             <div className="space-y-4 animate-in fade-in duration-500">
               <h3 className="font-black text-xs uppercase tracking-widest mb-4">Ficha de Registro</h3>
@@ -196,7 +243,7 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
                 <input placeholder="WhatsApp (Con código de área) *" className="col-span-2 p-3 border rounded-xl text-sm" onChange={(e)=>setNuevoCliente({...nuevoCliente, telefono: e.target.value})} />
                 
                 <div className="col-span-2">
-                  <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Fecha de Nacimiento *</label>
+                  <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Fecha de Nacimiento (Opcional)</label>
                   <input type="date" className="w-full p-3 border rounded-xl text-sm" onChange={(e)=>setNuevoCliente({...nuevoCliente, fechaNacimiento: e.target.value})} />
                 </div>
 
@@ -224,7 +271,6 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
             </div>
           )}
 
-          {/* PASO 3: CARRITO Y PRODUCTOS */}
           {paso === 3 && (
             <div className="space-y-6 animate-in slide-in-from-bottom-4">
               <div className="p-4 bg-slate-900 text-white rounded-2xl flex justify-between items-center">
@@ -238,16 +284,36 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
                 </div>
               </div>
 
+              {/* BÚSQUEDA INTELIGENTE */}
               <div className="relative">
-                <input type="text" placeholder="Buscar producto por nombre..." className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-brand-orange/20" value={busquedaProd} onChange={(e)=>setBusquedaProd(e.target.value)} />
-                {busquedaProd.length > 1 && (
+                <input 
+                  type="text" 
+                  placeholder="Buscar producto por nombre..." 
+                  className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-brand-orange/20" 
+                  value={busquedaProd} 
+                  onChange={(e)=>setBusquedaProd(e.target.value)}
+                  onKeyDown={handleKeyDown} 
+                />
+                
+                {buscando && <div className="absolute right-4 top-4 text-[10px] font-black text-brand-orange animate-pulse">BUSCANDO...</div>}
+
+                {resultadosBusqueda.length > 0 && (
                   <div className="absolute z-20 w-full mt-2 bg-white border shadow-2xl rounded-2xl max-h-60 overflow-y-auto">
-                    {productos.filter(p => p.nombre.toLowerCase().includes(busquedaProd.toLowerCase())).map(p => (
-                      <button key={p.id} onClick={()=>agregarProducto(p)} className="w-full p-4 text-left border-b hover:bg-slate-50 flex justify-between items-center">
-                        <span className="text-xs font-bold">{p.nombre}</span>
+                    {resultadosBusqueda.map((p, index) => (
+                      <button 
+                        key={p.id} 
+                        onClick={()=>agregarProducto(p)} 
+                        className={`w-full p-4 text-left border-b flex justify-between items-center transition-colors ${index === indiceSeleccionado ? 'bg-slate-100 border-l-4 border-l-brand-orange' : 'hover:bg-slate-50'}`}
+                      >
+                        <span className="text-xs font-bold uppercase">{p.nombre}</span>
                         <span className="text-[10px] font-black text-brand-orange">STOCK: {p.stock}</span>
                       </button>
                     ))}
+                  </div>
+                )}
+                {busquedaProd.length > 1 && !buscando && resultadosBusqueda.length === 0 && (
+                  <div className="absolute z-20 w-full mt-2 bg-white border shadow-2xl rounded-2xl p-4 text-center text-[10px] uppercase font-bold text-slate-400">
+                    No hay resultados en el servidor
                   </div>
                 )}
               </div>
@@ -262,14 +328,13 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-[8px] font-black text-slate-400 uppercase">Cantidad</label>
-                        <input type="number" value={i.cantidad} onChange={(e)=>actualizarItem(i.id, 'cantidad', parseInt(e.target.value))} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
+                        <input type="number" value={i.cantidad} onChange={(e)=>actualizarItem(i.id, 'cantidad', parseInt(e.target.value) || 1)} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
                       </div>
                       <div>
                         <label className="text-[8px] font-black text-slate-400 uppercase">Precio Unit.</label>
-                        <input type="number" value={i.precioFinal} onChange={(e)=>actualizarItem(i.id, 'precioFinal', parseInt(e.target.value))} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
+                        <input type="number" value={i.precioFinal} onChange={(e)=>actualizarItem(i.id, 'precioFinal', parseInt(e.target.value) || 0)} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
                       </div>
                       <div className="text-right flex flex-col justify-end">
-                        {/* 👉 CORRECCIÓN BUG #2: Renderizamos correctamente el total usando precioFinal */}
                         <p className="text-xs font-black">${(i.cantidad * i.precioFinal).toLocaleString()}</p>
                       </div>
                     </div>
@@ -278,20 +343,47 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos }) {
               </div>
 
               <div className="pt-6 border-t">
+                {/* LÓGICA DE PAGOS Y DESCUENTOS */}
+                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 mb-2 uppercase">
+                  <span>Subtotal</span>
+                  <span>${subtotalVenta.toLocaleString()}</span>
+                </div>
+                
+                {descuentoMonto > 0 && (
+                  <div className="flex justify-between items-center text-[10px] font-bold text-brand-orange mb-2 uppercase">
+                    <span>Descuento (5%)</span>
+                    <span>- ${descuentoMonto.toLocaleString()}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center mb-6">
-                  <span className="text-xs font-black uppercase tracking-widest">Total de Venta</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Total a Cobrar</span>
                   <span className="text-3xl font-black text-slate-900">${totalVenta.toLocaleString()}</span>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-2 mb-6">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   {['Transferencia', 'Efectivo', 'MercadoPago'].map(m => (
-                    <button key={m} onClick={()=>setMetodoPago(m)} className={`py-3 rounded-xl text-[9px] font-black uppercase border transition-all ${metodoPago === m ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200'}`}>{m}</button>
+                    <button key={m} onClick={() => { setMetodoPago(m); setNroComprobante(''); }} className={`py-3 rounded-xl text-[9px] font-black uppercase border transition-all ${metodoPago === m ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200'}`}>{m}</button>
                   ))}
                 </div>
 
-                <div className="flex gap-3">
+                {/* COMPROBANTE OBLIGATORIO */}
+                {requiereComprobante && (
+                  <div className="mb-6 animate-in fade-in zoom-in duration-300">
+                    <label className="text-[10px] font-bold uppercase text-brand-orange mb-2 block">Nro de Comprobante / Operación *</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ingrese el código del recibo" 
+                      className="w-full p-3 border-2 border-brand-orange/30 rounded-xl outline-none focus:border-brand-orange text-sm font-bold bg-orange-50/30"
+                      value={nroComprobante}
+                      onChange={(e) => setNroComprobante(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-4">
                   <button onClick={()=>setPaso(1)} className="flex-1 py-4 text-[10px] font-black uppercase">Atrás</button>
-                  <button onClick={finalizarVenta} disabled={cargando} className="flex-[3] bg-brand-orange text-white py-4 rounded-xl font-black uppercase text-[10px] shadow-lg shadow-brand-orange/20">{cargando ? 'Procesando...' : 'Confirmar y Descontar Stock'}</button>
+                  <button onClick={finalizarVenta} disabled={cargando} className="flex-[3] bg-brand-orange text-white py-4 rounded-xl font-black uppercase text-[10px] shadow-lg shadow-brand-orange/20">{cargando ? 'Procesando...' : 'Confirmar Venta'}</button>
                 </div>
               </div>
             </div>
