@@ -56,6 +56,26 @@ export function CatalogProvider({ children }) {
     };
   }, []);
 
+  // 👉 2. NUEVO: Función de Carga Masiva (Para el Catálogo Rápido)
+  const fetchAllProductos = useCallback(async () => {
+    setCargando(true);
+    try {
+      const qAll = query(collection(db, 'productos'));
+      const snapshot = await getDocs(qAll);
+      const nuevosProductos = {};
+
+      snapshot.docs.forEach(doc => {
+        nuevosProductos[doc.id] = { id: doc.id, ...doc.data() };
+      });
+
+      setProductosCache(prev => ({ ...prev, ...nuevosProductos }));
+    } catch (error) {
+      console.error("Error cargando todo el catálogo:", error);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
   // 👉 3. FUNCIÓN DE BÚSQUEDA BAJO DEMANDA (Soporta Paginación)
   const fetchProductosQuery = useCallback(async (customQuery) => {
     try {
@@ -80,14 +100,12 @@ export function CatalogProvider({ children }) {
 
   // 👉 4. FUNCIÓN MEJORADA: Busca por ID o por Slug amigable
   const fetchProductoById = useCallback(async (slugOrId) => {
-    // 1. Buscar en el caché local (por id o por slug)
+    // 1. Buscar en el caché local
     const cachedProd = Object.values(productosCache).find(p => p.id === slugOrId || p.slug === slugOrId);
-    if (cachedProd) {
-      return cachedProd;
-    }
+    if (cachedProd) return cachedProd;
 
     try {
-      // 2. Intentar buscar como si fuera el ID del documento
+      // 2. Intentar buscar por ID de documento
       const docRef = doc(db, 'productos', slugOrId);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
@@ -96,7 +114,7 @@ export function CatalogProvider({ children }) {
         return prod;
       }
 
-      // 3. Si no es un ID, buscar en la base de datos por el campo 'slug'
+      // 3. Buscar por slug
       const qSlug = query(collection(db, 'productos'), where('slug', '==', slugOrId), limit(1));
       const slugSnap = await getDocs(qSlug);
       
@@ -111,7 +129,6 @@ export function CatalogProvider({ children }) {
       console.error("Error buscando producto por ID o Slug:", error);
     }
     
-    // Si no lo encuentra de ninguna manera, retorna null (y muestra Volver al Shop)
     return null;
   }, [productosCache]);
 
@@ -120,6 +137,7 @@ export function CatalogProvider({ children }) {
       productos, 
       menuTree, 
       cargando,
+      fetchAllProductos, // Exportamos la nueva función
       fetchProductosQuery,
       fetchProductoById
     }}>

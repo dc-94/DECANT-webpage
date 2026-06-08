@@ -34,6 +34,7 @@ const GraciasSuscripciones = lazy(() => import('./pages/GraciasSuscripciones'));
 const Tracking = lazy(() => import('./pages/Tracking'));
 const Login = lazy(() => import('./pages/Login'));
 
+const CatalogoRapido = lazy(() => import('./pages/CatalogoRapido'));
 // RUTAS ADMIN (Las más pesadas)
 const AdminSelector = lazy(() => import('./pages/AdminSelector'));
 const LockedCellar = lazy(() => import('./pages/locked_cellar')); 
@@ -87,6 +88,8 @@ function App() {
                       <Route path="/checkout-suscripciones" element={<CheckoutSuscripciones />} />
                       <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
                       <Route path="/login" element={<Login />} />
+                      
+                      <Route path="/catalogo-rapido" element={<CatalogoRapido />} />
 
                       {/* RUTAS PRIVADAS */}
                       <Route path="/admin_selector" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
