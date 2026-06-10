@@ -85,13 +85,13 @@ function App() {
                       
                       {/* 👉 NUEVO: RUTAS COMPARTIDAS */}
                       {/* El login es accesible de ambos lados por si en el futuro los clientes inician sesión */}
-                      <Route path="/login" element={<Login />} />
-
+                    
                       {/* 👉 NUEVO: BLOQUE 1 - RUTAS DEL PANEL ADMINISTRATIVO */}
                       {isAdminDomain && (
                         <>
                           <Route path="*" element={<Navigate to="/login" replace />} />
-  
+    <Route path="/login" element={<Login />} />
+
                           <Route path="/admin_selector" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
                           <Route path="/admin/dashboard" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
                           <Route path="/locked_storefront" element={<ProtectedRoute><LockedStorefront /></ProtectedRoute>} />
