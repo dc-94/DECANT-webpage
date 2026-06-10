@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase";
 
 const AuthContext = createContext();
@@ -8,48 +8,42 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Toma el email desde el archivo .env configurado en Vercel
   const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || "the.decantclub@gmail.com"; 
 
-  const login = async (email, password) => {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    // Verificamos si el que entró manual es el admin
-    if (result.user.email !== ADMIN_EMAIL) {
-      alert("Acceso denegado. No eres el administrador de Decant.");
-      await signOut(auth);
-      throw new Error("Usuario no autorizado");
-    }
-    return result;
-  };
-
   const loginWithGoogle = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user.email !== ADMIN_EMAIL) {
-        alert("Acceso denegado. No eres el administrador de Decant.");
-        await signOut(auth);
-      }
-    } catch (error) {
-      console.error("Error al iniciar sesión con Google:", error);
+    // Ya no usamos try/catch aquí para que el error suba a la pantalla de Login y se muestre en rojo
+    const result = await signInWithPopup(auth, googleProvider);
+    
+    if (result.user.email !== ADMIN_EMAIL) {
+      await signOut(auth);
+      // Reemplazamos el alert() por un throw Error (Best Practice)
+      throw new Error("Acceso denegado. No eres el administrador de Decant.");
     }
+    
+    return result;
   };
 
   const logout = () => signOut(auth);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // Verifica nuevamente que sea el admin
+      // Verifica estrictamente que el usuario de Google sea el admin
       if (currentUser && currentUser.email === ADMIN_EMAIL) {
         setUser(currentUser);
       } else {
+        // Limpieza de estado si se cuela alguien que no es
         setUser(null);
       }
       setLoading(false);
     });
+    
     return () => unsubscribe();
   }, [ADMIN_EMAIL]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, loading }}>
+    // Quitamos 'login' de los values provistos
+    <AuthContext.Provider value={{ user, loginWithGoogle, logout, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   );

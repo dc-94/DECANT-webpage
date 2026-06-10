@@ -90,6 +90,8 @@ function App() {
                       {/* 👉 NUEVO: BLOQUE 1 - RUTAS DEL PANEL ADMINISTRATIVO */}
                       {isAdminDomain && (
                         <>
+                          <Route path="*" element={<Navigate to="/login" replace />} />
+  
                           <Route path="/admin_selector" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
                           <Route path="/admin/dashboard" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
                           <Route path="/locked_storefront" element={<ProtectedRoute><LockedStorefront /></ProtectedRoute>} />
@@ -121,14 +123,6 @@ function App() {
                           <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
                           <Route path="/catalogo-rapido" element={<CatalogoRapido />} />
                         </>
-                      )}
-
-                      {/* 👉 NUEVO: REDIRECCIÓN CATCH-ALL ANTI VIVEZA CRIOLLA */}
-                      {/* Si un usuario escribe una URL que no existe o intenta acceder al admin desde el dominio público */}
-                      {isAdminDomain && !isPublicDomain ? (
-                        <Route path="*" element={<Navigate to="/login" replace />} />
-                      ) : (
-                        <Route path="*" element={<Navigate to="/" replace />} />
                       )}
 
                     </Routes>

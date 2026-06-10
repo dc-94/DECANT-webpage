@@ -3,41 +3,34 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Solo conservamos los estados de UI (error y carga)
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { login, loginWithGoogle, user } = useAuth(); // 👈 Traemos loginWithGoogle y el user actual
+  // Quitamos 'login' porque ya lo borramos del AuthContext
+  const { loginWithGoogle, user } = useAuth(); 
   const navigate = useNavigate();
 
-  // 🛡️ SENSOR DE SESIÓN ACTIVA
+  // 🛡️ SENSOR DE SESIÓN ACTIVA: Si ya está logueado, lo patea adentro
   useEffect(() => {
     if (user) {
-      navigate("/admin/dashboard");
+      // Ajusta esta ruta si tu componente inicial del admin es otro (ej. /admin_selector)
+      navigate("/admin/dashboard"); 
     }
   }, [user, navigate]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+  const handleGoogleLogin = async () => {
+    setError(""); // Limpia errores de intentos previos
     setLoading(true);
     try {
-      await login(email, password);
-      navigate("/admin/dashboard");
+      await loginWithGoogle();
+      // No hace falta el navigate aquí porque el useEffect de arriba lo detectará automáticamente
     } catch (err) {
-      setError("Credenciales inválidas.");
+      // Capturamos el error que enviamos desde AuthContext (el throw new Error)
+      // y lo mostramos visualmente en el componente
+      setError(err.message || "Error al conectar.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      await loginWithGoogle();
-      navigate("/admin/dashboard");
-    } catch (err) {
-      setError("Error al conectar con Google.");
     }
   };
 
@@ -47,39 +40,31 @@ export default function Login() {
         
         <div className="flex flex-col items-center mb-12">
           <img src="/assets/brand/logo-white-T.png" alt="Decant" className="h-12 mb-4 opacity-90" />
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-light-blue">Private Access</p>
         </div>
 
         <div className="bg-brand-blue/30 border border-light-blue/10 p-8 rounded-3xl backdrop-blur-sm shadow-2xl">
-          {/* BOTÓN GOOGLE: El más rápido para entrar */}
+          
+          {/* 🔴 BLOQUE DE ALERTA DE SEGURIDAD (Se muestra si alguien no autorizado intenta entrar) */}
+          {error && (
+            <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl text-xs text-center font-bold">
+              {error}
+            </div>
+          )}
+
+          {/* BOTÓN GOOGLE: Único método de acceso blindado */}
           <button 
             onClick={handleGoogleLogin}
-            className="w-full mb-6 bg-brand-white text-extra-black font-black py-4 rounded-xl flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] hover:bg-light-grey transition-all"
+            disabled={loading}
+            className="w-full bg-brand-white text-extra-black font-black py-4 rounded-xl flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] hover:bg-light-grey transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/0/google.svg" className="w-4 h-4" alt="G" />
-            Entrar con Google
+            {loading ? (
+              // Mini spinner para la UX mientras verifica
+              <div className="animate-spin h-4 w-4 border-2 border-extra-black border-t-transparent rounded-full"></div>
+            ) : (
+            loading ? "Verificando..." : "Acceso Administrador"
+            )}
           </button>
 
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-light-blue/10"></div></div>
-            <div className="relative flex justify-center text-[10px] uppercase font-black text-dark-grey bg-transparent px-2">
-              <span className="bg-[#12171d] px-2">o vía email</span>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input 
-              required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email" className="w-full bg-extra-black border border-light-blue/10 p-4 rounded-xl text-brand-white text-sm outline-none focus:border-brand-orange transition-all"
-            />
-            <input 
-              required type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password" className="w-full bg-extra-black border border-light-blue/10 p-4 rounded-xl text-brand-white text-sm outline-none focus:border-brand-orange transition-all"
-            />
-            <button disabled={loading} className="w-full bg-brand-orange text-brand-white font-black py-4 rounded-xl uppercase tracking-widest text-[10px] hover:bg-dark-orange transition-all">
-              {loading ? "Verificando..." : "Acceder"}
-            </button>
-          </form>
         </div>
       </div>
     </div>
