@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'; 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; // 👉 NUEVO: Importamos Navigate para redirecciones
 import { HelmetProvider } from 'react-helmet-async';
-
+import { Toaster } from 'react-hot-toast';
 // CONTEXTOS (Estos se mantienen igual porque son el motor de la app)
 import { AuthProvider } from './context/AuthContext';
 import { CatalogProvider } from './context/CatalogContext';
@@ -14,10 +14,6 @@ import AgeGate from './components/public/AgeGate';
 import ScrollToTop from './components/public/ScrollToTop';
 import ProtectedRoute from './components/admin/ProtectedRoute';
 import ErrorBoundary from './components/layout/ErrorBoundary'; 
-
-// =========================================================
-// CARGA PEREZOSA (Lazy Loading) 
-// =========================================================
 
 // RUTAS PÚBLICAS
 const Home = lazy(() => import('./pages/Home'));
@@ -66,6 +62,7 @@ function App() {
                 `}</style>
                 
                 <Router>
+                  <Toaster position="bottom-right" reverseOrder={false} />
                   <ScrollToTop />
                   
                   {/* 👉 NUEVO: Ocultamos AgeGate y Loader en la administración para evitar que molesten */}
@@ -90,7 +87,7 @@ function App() {
                       {isAdminDomain && (
                         <>
                           <Route path="*" element={<Navigate to="/login" replace />} />
-    <Route path="/login" element={<Login />} />
+                          <Route path="/login" element={<Login />} />
 
                           <Route path="/admin_selector" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
                           <Route path="/admin/dashboard" element={<ProtectedRoute><AdminSelector /></ProtectedRoute>} />
@@ -123,6 +120,13 @@ function App() {
                           <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
                           <Route path="/catalogo-rapido" element={<CatalogoRapido />} />
                         </>
+                      )}
+                      {/* 👉 NUEVO: REDIRECCIÓN CATCH-ALL ANTI VIVEZA CRIOLLA */}
+                      {/* Si un usuario escribe una URL que no existe o intenta acceder al admin desde el dominio público */}
+                      {isAdminDomain && !isPublicDomain ? (
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                      ) : (
+                        <Route path="*" element={<Navigate to="/" replace />} />
                       )}
 
                     </Routes>

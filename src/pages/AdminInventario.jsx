@@ -156,7 +156,7 @@ export default function AdminInventario() {
                 <div className="w-16 shrink-0">Img</div>
                 <div className="flex-1 pr-4">Producto & Bodega</div>
                 <div className="w-32 shrink-0">Subcategoría</div>
-                <div className="w-32 shrink-0">Categoría</div>
+                <div className="w-32 shrink-0">Varietal</div>
                 <div className="w-28 shrink-0 text-right pr-4">Desc / Base</div>
                 <div className="w-28 shrink-0 text-right pr-6">Precio Final</div>
                 <div className="w-28 shrink-0 text-center">Stock</div>
@@ -180,7 +180,7 @@ export default function AdminInventario() {
                         <p className="text-[10px] font-bold text-light-blue uppercase tracking-widest">{prod.bodega}</p>
                       </div>
                       <div className="w-32 shrink-0 truncate font-poppins text-[10px] uppercase tracking-widest text-dark-grey pr-2">{prod.subcategoria || '-'}</div>
-                      <div className="w-32 shrink-0 truncate font-poppins text-[10px] uppercase tracking-widest text-dark-grey pr-2">{prod.categoria || '-'}</div>
+                      <div className="w-32 shrink-0 truncate font-poppins text-[10px] uppercase tracking-widest text-dark-grey pr-2">{prod.varietal || '-'}</div>
                       <div className="w-28 shrink-0 text-right pr-4 flex flex-col items-end justify-center">
                         {tieneDescuento ? (
                           <span className="font-poppins text-[11px] text-dark-grey line-through">${prod.precioBase?.toLocaleString('es-AR')}</span>

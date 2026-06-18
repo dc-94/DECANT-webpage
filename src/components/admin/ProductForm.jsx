@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { db } from "../../config/firebase";
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import toast from 'react-hot-toast'; // 👉 IMPORTAMOS LOS TOASTS
 import BlobProducto from "../icons/BlobProducto";
 
-// 🎨 Ajustados para ser flexibles
 const obtenerColorBlob = (categoria, subcategoria) => {
   const catStr = (categoria || "").toLowerCase();
   const subStr = (subcategoria || "").toLowerCase();
@@ -22,17 +22,16 @@ const obtenerColorBlob = (categoria, subcategoria) => {
   return "text-gray-300/50"; 
 };
 
-// 👉 NUEVA FUNCIÓN PARA GENERAR URLS AMIGABLES
 const generarSlug = (texto) => {
   return texto
     .toString()
     .toLowerCase()
     .trim()
-    .normalize('NFD') // Quita acentos
+    .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9 -]/g, '') // Borra caracteres raros
-    .replace(/\s+/g, '-') // Cambia espacios por guiones
-    .replace(/-+/g, '-'); // Quita guiones repetidos
+    .replace(/[^a-z0-9 -]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 };
 
 export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
@@ -41,7 +40,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
   const [imagenGuardadaUrl, setImagenGuardadaUrl] = useState(""); 
   const [showPreview, setShowPreview] = useState(false); 
   
-  // --- ESTADOS PARA EL ÁRBOL DINÁMICO DE FIREBASE ---
   const [menuTree, setMenuTree] = useState([]);
   const [subcategoriasDisponibles, setSubcategoriasDisponibles] = useState([]);
   const [cepasDisponibles, setCepasDisponibles] = useState([]);
@@ -54,16 +52,16 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     etiquetas: [] 
   });
 
-  // 1. ESCUCHAR LAS CATEGORÍAS DEL MENÚ
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'categorias_menu'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMenuTree(data);
+    }, (error) => {
+      toast.error("Error al cargar categorías: " + error.message);
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. RECUPERAR DATOS AL EDITAR
   useEffect(() => {
     if (productoEnAccion && productoEnAccion.data) {
       const { data } = productoEnAccion;
@@ -80,7 +78,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     }
   }, [productoEnAccion]);
 
-  // 3. LÓGICA DE SELECTORES EN CASCADA
   useEffect(() => {
     const cat = menuTree.find(c => c.nombre === formData.categoria);
     if (cat && cat.subcategorias) {
@@ -105,7 +102,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     }
   }, [formData.subcategoria, formData.categoria, menuTree]);
 
-  // --- HANDLERS ---
   const handleChange = (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setFormData({ ...formData, [e.target.name]: value });
@@ -126,52 +122,52 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     setFormData(prev => ({ ...prev, etiquetas: prev.etiquetas.filter(t => t !== tag) }));
   };
 
+  // 👉 CORRECCIÓN CRÍTICA: Ahora arroja error real si Cloudinary falla
   const uploadImage = async (file, categoriaName, subcategoriaName, productName) => {
     if (!file) return "";
-    try {
-      const data = new FormData();
-      data.append("file", file);
-      data.append("upload_preset", "upld_decant");
-      
-      // 1. Organiza por carpeta según categoría y subcategoría
-      if (categoriaName) {
-        const catLimpia = categoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        if (subcategoriaName) {
-          const subcatLimpia = subcategoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
-          data.append("folder", `decant/catalog/${catLimpia}/${subcatLimpia}`);
-        } else {
-          data.append("folder", `decant/catalog/${catLimpia}`);
-        }
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", "upld_decant"); // Asegúrate que este preset existe en Cloudinary
+    
+    if (categoriaName) {
+      const catLimpia = categoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (subcategoriaName) {
+        const subcatLimpia = subcategoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        data.append("folder", `decant/catalog/${catLimpia}/${subcatLimpia}`);
       } else {
-        data.append("folder", `decant/catalog/general`);
+        data.append("folder", `decant/catalog/${catLimpia}`);
       }
-
-      // 2. Nombra el archivo como el producto
-      if (productName) {
-        const nombreLimpio = productName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        data.append("public_id", nombreLimpio);
-      }
-
-      const res = await fetch("https://api.cloudinary.com/v1_1/ds7shexal/image/upload", { method: "POST", body: data });
-      const fileRes = await res.json();
-      return fileRes.secure_url || "";
-    } catch (error) { 
-      console.error("Error al subir imagen:", error); 
-      return ""; 
+    } else {
+      data.append("folder", `decant/catalog/general`);
     }
+
+    if (productName) {
+      const nombreLimpio = productName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+      data.append("public_id", nombreLimpio);
+    }
+
+    const res = await fetch("https://api.cloudinary.com/v1_1/ds7shexal/image/upload", { method: "POST", body: data });
+    const fileRes = await res.json();
+    
+    if (fileRes.error) {
+      throw new Error(`Cloudinary: ${fileRes.error.message}`);
+    }
+    
+    return fileRes.secure_url || "";
   };
 
   const cerrarModal = () => setProductoEnAccion(null);
 
   const handleEliminar = async () => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta etiqueta de la cava? Esta acción no se puede deshacer.")) {
+    if (window.confirm("¿Estás seguro de que deseas eliminar esta etiqueta de la cava?")) {
+      const toastId = toast.loading("Eliminando producto...");
       setLoading(true);
       try {
         await deleteDoc(doc(db, "productos", productoEnAccion.data.id));
+        toast.success("Producto eliminado correctamente", { id: toastId });
         cerrarModal();
       } catch (error) {
-        alert("Error al eliminar: " + error.message);
+        toast.error("Error al eliminar: " + error.message, { id: toastId });
       } finally {
         setLoading(false);
       }
@@ -181,17 +177,22 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.categoria || !formData.bodega || !formData.producto || !formData.costo || !formData.ganancia) {
-      alert("⚠️ Completa los campos obligatorios."); return;
+      toast.error("⚠️ Completa los campos obligatorios."); return;
     }
+    
+    const toastId = toast.loading("Guardando etiqueta...");
     setLoading(true);
 
     try {
       let finalImageUrl = imagenGuardadaUrl; 
       
+      // 👉 Si hay archivo nuevo, lo sube y pisa la URL anterior
       if (imageFile) {
+        toast.loading("Subiendo imagen...", { id: toastId });
         finalImageUrl = await uploadImage(imageFile, formData.categoria, formData.subcategoria, formData.producto); 
       }
       
+      toast.loading("Sincronizando base de datos...", { id: toastId });
       const costoNum = parseFloat(formData.costo) || 0;
       const gananciaNum = parseFloat(formData.ganancia) || 0;
       const descNum = parseFloat(formData.descuentoPorcentaje) || 0;
@@ -199,7 +200,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
       const precioBase = costoNum + (costoNum * (gananciaNum / 100)); 
       const precioFinal = precioBase - (precioBase * (descNum / 100)); 
 
-      // 👉 GENERAMOS EL SLUG CON EL NOMBRE DEL PRODUCTO
       const slugGenerado = generarSlug(formData.producto);
 
       const payload = {
@@ -209,17 +209,24 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
         descuentoNombre: formData.descuentoNombre, mostrarDescuento: formData.mostrarDescuento, 
         stock: stockNum, aPedido: formData.aPedido, imageUrl: finalImageUrl,
         etiquetas: formData.etiquetas,
-        slug: slugGenerado // 👉 LO GUARDAMOS EN FIREBASE
+        slug: slugGenerado
       };
 
       if (productoEnAccion?.modo === "editar") {
         const docRef = doc(db, "productos", productoEnAccion.data.id);
         await updateDoc(docRef, { ...payload, updatedAt: serverTimestamp() });
+        toast.success("¡Etiqueta actualizada con éxito!", { id: toastId });
       } else {
         await addDoc(collection(db, "productos"), { ...payload, createdAt: serverTimestamp() });
+        toast.success("¡Producto cargado al inventario!", { id: toastId });
       }
       cerrarModal(); 
-    } catch (error) { alert("Error: " + error.message); } finally { setLoading(false); }
+    } catch (error) { 
+      // 👉 AHORA ATRAPA CUALQUIER ERROR (CLOUDINARY O FIREBASE) Y LO MUESTRA
+      toast.error("Error: " + error.message, { id: toastId, duration: 5000 }); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const isEditMode = productoEnAccion?.modo === "editar";
@@ -229,7 +236,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
   const precioBaseCalculado = (parseFloat(formData.costo) || 0) * (1 + ((parseFloat(formData.ganancia) || 0) / 100));
   const precioFinalCalculado = precioBaseCalculado - (precioBaseCalculado * ((parseFloat(formData.descuentoPorcentaje) || 0) / 100));
 
-  // --- COMPONENTE DE TARJETA ---
   const TarjetaPreview = () => (
     <div className="w-full max-w-sm bg-white border border-gray-200 rounded-sm overflow-hidden relative shadow-xl flex flex-col mx-auto font-poppins">
       <div className="relative h-72 w-full flex items-center justify-center pt-6 pb-10 px-6 overflow-hidden bg-transparent">
@@ -241,13 +247,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
          ) : (
            <span className="text-gray-400 text-sm border border-dashed border-gray-300 p-4 rounded-sm relative z-10 bg-white/50 backdrop-blur-sm">Sin imagen</span>
          )}
-         <div className="absolute top-4 left-4 flex flex-col gap-2 items-start z-20">
-            {formData.descuentoPorcentaje > 0 && (
-              <span className="bg-brand-orange text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-sm shadow-lg tracking-widest">
-                 -{formData.descuentoPorcentaje}% {formData.mostrarDescuento ? formData.descuentoNombre : ''}
-              </span>
-            )}
-         </div>
       </div>
       <div className="p-6 bg-white flex flex-col flex-grow justify-between border-t border-gray-100 z-30">
          <div>
@@ -260,11 +259,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
          <div className="mt-4">
             <div className="flex items-end justify-between">
                 <div className="flex flex-col">
-                    {formData.descuentoPorcentaje > 0 && (
-                      <span className="text-gray-400 line-through text-[11px] font-medium">
-                        ${precioBaseCalculado.toLocaleString()}
-                      </span>
-                    )}
                     <span className="text-extra-black text-2xl font-black tracking-tight">
                       ${precioFinalCalculado.toLocaleString()}
                     </span>
@@ -274,7 +268,6 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
       </div>
     </div>
   );
-
   return (
     <>
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-extra-black/60 backdrop-blur-sm p-4 md:p-8 font-poppins">

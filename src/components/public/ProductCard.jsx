@@ -7,6 +7,25 @@ import { useSocio } from '../../context/SocioContext';
 // 👉 Importamos nuestro nuevo motor de precios
 import { usePricingEngine } from '../../hooks/usePricingEngine';
 
+// 👉 Función de colores dinámicos (Sin el /40 porque el contenedor ya tiene opacity-15)
+const obtenerColorBlob = (categoria, subcategoria) => {
+  const catStr = (categoria || "").toLowerCase();
+  const subStr = (subcategoria || "").toLowerCase();
+  
+  if (catStr.includes("vino")) {
+    if (subStr.includes("tinto") || subStr.includes("blend")) return "text-red-800";
+    if (subStr.includes("blanco")) return "text-yellow-400";
+    if (subStr.includes("rosado")) return "text-pink-400";
+    return "text-red-800";
+  } 
+  if (catStr.includes("espumante")) return "text-amber-400"; 
+  if (catStr.includes("destilado")) return "text-cyan-400";
+  if (catStr.includes("aperitivo")) return "text-orange-500";
+  if (catStr.includes("deli") || catStr.includes("cafe")) return "text-stone-400";
+  
+  return "text-light-blue"; 
+};
+
 const ShoppingBagIcon = memo(({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -45,11 +64,15 @@ const ProductCard = memo(function ProductCard({ producto }) {
 
   const productUrl = `/producto/${producto.slug || producto.id}`;
 
+  // Determinamos el color dinámico para esta tarjeta
+  const colorDelBlob = obtenerColorBlob(producto.categoria, producto.subcategoria);
+
   return (
     <div className="group flex flex-col h-full bg-transparent font-poppins">
       <Link to={productUrl} className="relative aspect-[3/4] flex items-center justify-center overflow-hidden p-0 bg-transparent flex-shrink-0 block outline-none">
         <div className="absolute inset-0 flex items-center justify-center z-0 opacity-15 transition-transform duration-1000 group-hover:scale-110 pointer-events-none">
-           <BlobProducto className="w-[90%] h-[90%] text-light-blue" /> 
+           {/* 👉 BLOB DINÁMICO */}
+           <BlobProducto className={`w-[90%] h-[90%] ${colorDelBlob}`} /> 
         </div>
         {producto.imageUrl ? (
           <img src={producto.imageUrl} alt={producto.nombre} loading="lazy" decoding="async" className={`relative z-10 h-[80%] object-contain transition-transform duration-700 group-hover:scale-105 ${sinStock ? 'grayscale opacity-30' : ''}`} />
@@ -59,7 +82,7 @@ const ProductCard = memo(function ProductCard({ producto }) {
       </Link>
 
       <div className="flex flex-col flex-1 mt-3">
-        <div className="h-6 flex items-start justify-center w-full mb-3 flex-shrink-0">
+        <div className="h-6 flex items-start justify-center w-full mb-1 flex-shrink-0">
           {producto.aPedido ? (
             <div className="bg-extra-black text-brand-white text-[9px] font-black uppercase tracking-[0.4em] py-1.5 w-full text-center shadow-sm">A Pedido</div>
           ) : (stock > 0 && stock <= 3) ? (
@@ -67,17 +90,26 @@ const ProductCard = memo(function ProductCard({ producto }) {
           ) : null}
         </div>
 
-        <div className="mb-2">
-          <Link to={productUrl} className="outline-none block">
-            <h3 className="font-playfair italic text-xl md:text-2xl leading-tight text-dark-blue line-clamp-3 hover:text-brand-orange transition-colors">{producto.nombre}</h3>
-          </Link>
+        {/* 👉 BODEGA Y ORIGEN (Movidos hacia arriba de forma elegante) */}
+        <div className="flex flex-col mb-2 mt-1">
+          <div className="flex items-center gap-2 text-[9px] font-poppins font-black uppercase tracking-[0.25em] text-dark-blue mb-1">
+            <span className="whitespace-nowrap truncate max-w-[70%]">{producto.bodega}</span>
+            <span className="flex-1 h-[1px] bg-dark-blue/15"></span>
+          </div>
+          <div className="flex items-center gap-2 text-[8px] font-poppins font-black uppercase tracking-[0.4em] text-light-blue">
+            <span className="flex-1 h-[1px] bg-dark-blue/10"></span>
+            {/* Reemplazamos varietal por ORIGEN */}
+            <span className="whitespace-nowrap truncate max-w-[80%]">{producto.origen || 'ARGENTINA'}</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-[9px] font-poppins font-black uppercase tracking-[0.25em] text-dark-blue mb-2">
-          <span className="whitespace-nowrap truncate max-w-[70%]">{producto.bodega}</span><span className="flex-1 h-[1px] bg-dark-blue/15"></span>
-        </div>
-        <div className="flex items-center gap-2 text-[8px] font-poppins font-black uppercase tracking-[0.4em] text-light-blue mb-4">
-          <span className="flex-1 h-[1px] bg-dark-blue/10"></span><span className="whitespace-nowrap truncate max-w-[80%]">{producto.varietal || 'CEPA'}</span>
+        {/* 👉 NOMBRE DEL PRODUCTO */}
+        <div className="mb-2">
+          <Link to={productUrl} className="outline-none block">
+            <h3 className="font-playfair italic text-xl md:text-2xl leading-tight text-dark-blue line-clamp-3 hover:text-brand-orange transition-colors">
+              {producto.nombre}
+            </h3>
+          </Link>
         </div>
 
         <div className="mt-auto flex flex-col pt-2">
