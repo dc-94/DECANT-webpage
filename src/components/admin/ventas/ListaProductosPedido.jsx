@@ -14,7 +14,7 @@ export default function ListaProductosPedido({ pedido }) {
               </div>
             </div>
             <span className="font-black text-xs text-slate-900 shrink-0">
-              ${((item.precioFinal || item.precio || item.precioUnitario || 0) * item.cantidad).toLocaleString()}
+              ${((calcularPrecio(item, socio).precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad).toLocaleString()}
             </span>
           </div>
         ))}

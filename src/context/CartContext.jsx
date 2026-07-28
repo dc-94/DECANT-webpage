@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { calcularPrecio } from '../hooks/usePricingEngine'; // Ajusta la ruta según tu estructura
+import { useSocio } from './SocioContext'; // Ajusta la ruta según tu estructura
 
 // 1. Creamos el contexto
 const CartContext = createContext();
@@ -14,6 +16,8 @@ export const useCart = () => {
 
 // 3. El Provider que envolverá nuestra aplicación
 export const CartProvider = ({ children }) => {
+  const { socio } = useSocio(); // Consumimos el estado del socio actual
+  
   // === NUEVO ESTADO GLOBAL PARA EL DRAWER Y EL TOAST ===
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
@@ -108,10 +112,13 @@ export const CartProvider = ({ children }) => {
     return cart.reduce((total, item) => total + item.cantidad, 0);
   }, [cart]);
 
-  // Monto total a pagar (usando precioFinal que ya tiene descuentos)
+  // Monto total a pagar (usando la función calcularPrecio para evaluar el descuento del socio)
   const totalPrecio = useMemo(() => {
-    return cart.reduce((total, item) => total + ((item.precioFinal || 0) * item.cantidad), 0);
-  }, [cart]);
+    return cart.reduce((total, item) => {
+      const { precioEfectivo } = calcularPrecio(item, socio);
+      return total + (precioEfectivo * item.cantidad);
+    }, 0);
+  }, [cart, socio]);
 
   // Valores que exportamos para usar en cualquier componente
   const value = {

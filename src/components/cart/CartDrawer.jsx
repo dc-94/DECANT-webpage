@@ -118,8 +118,8 @@ export default function CartDrawer({ isOpen, onClose }) {
   // 👉 ARQUITECTURA CLEAN CODE: Recalculamos el total efectivo en base al hook VIP
   const effectiveTotalPrecio = useMemo(() => {
     return cart.reduce((acc, item) => {
-      const pb = item.precioBase || item.precioFinal;
-      let pe = item.precioFinal;
+      const pb = item.precioBase || calcularPrecio(item, socio).precioEfectivo;
+      let pe = calcularPrecio(item, socio).precioEfectivo;
       let vip = item.descuentoNombre?.includes('Socio') || false;
       if (socio && !vip) {
         const ts = Math.round(pb * (1 - socio.porcentaje));

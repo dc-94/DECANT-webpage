@@ -102,8 +102,8 @@ export default function Checkout() {
 
   const effectiveCart = useMemo(() => {
     return cart.map(item => {
-      const precioBase = item.precioBase || item.precioFinal;
-      let precioEfectivo = item.precioFinal;
+      const precioBase = item.precioBase || calcularPrecio(item, socio).precioEfectivo;
+      let precioEfectivo = calcularPrecio(item, socio).precioEfectivo;
       if (socio && socio.porcentaje > 0) {
         precioEfectivo = Math.round(precioBase * (1 - socio.porcentaje));
       }
