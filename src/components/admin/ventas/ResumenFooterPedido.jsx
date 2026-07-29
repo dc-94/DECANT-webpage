@@ -1,6 +1,5 @@
 export default function ResumenFooterPedido({ pedido, estadoLocal, onEliminar, esRetiro }) {
-  const subtotalProductos = pedido.cart?.reduce((acc, item) => acc + ((calcularPrecio(item, socio).precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad), 0) || pedido.totalFinal;
-  
+  const subtotalProductos = pedido.cart?.reduce((acc, item) => acc + ((item.precioFinal || item.precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad), 0) || pedido.totalFinal;  
   let montoDescuento = 0;
   let motivoDescuento = [];
   

@@ -160,8 +160,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
     ? `${pedido.formData.direccion} ${pedido.formData.numero || ''}${pedido.formData.piso ? `, Piso ${pedido.formData.piso}` : ''}, ${pedido.formData.ciudad || ''} (${pedido.formData.cp || ''})`
     : 'Retiro en Cava / Sin domicilio';
 
-  const subtotalProductos = pedido.cart?.reduce((acc, item) => acc + ((calcularPrecio(item, socio).precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad), 0) || pedido.totalFinal;
-  
+  const subtotalProductos = pedido.cart?.reduce((acc, item) => acc + ((item.precioFinal || item.precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad), 0) || pedido.totalFinal;  
   let montoDescuento = 0;
   let motivoDescuento = [];
   
@@ -344,8 +343,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
                     </div>
                   </div>
                   <span className="font-black text-xs text-slate-900 shrink-0">
-                    ${((calcularPrecio(item, socio).precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad).toLocaleString()}
-                  </span>
+                    ${((item.precioFinal || item.precioEfectivo || item.precio || item.precioUnitario || 0) * item.cantidad).toLocaleString()}                  </span>
                 </div>
               ))}
 
