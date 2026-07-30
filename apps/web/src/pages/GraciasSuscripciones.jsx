@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SEO from '../components/public/SEO';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 // Íconos SVG reutilizables

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import { useCatalog } from '../context/CatalogContext';

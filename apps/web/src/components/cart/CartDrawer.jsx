@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useCatalog } from '../../context/CatalogContext';
 import { useSocio } from '../../context/SocioContext';
-import { usePricingEngine } from '../../hooks/usePricingEngine';
+import { usePricingEngine } from '../@decant/core/react';
 
 // Íconos
 const CloseIcon = ({ className }) => (

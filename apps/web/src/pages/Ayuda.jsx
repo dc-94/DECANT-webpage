@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import SEO from '../components/public/SEO';
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';
-import { db } from '../config/firebase'; // 👉 Importamos Firebase
+import { db } from '@decant/firebase-client'; // 👉 Importamos Firebase
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function Ayuda() {

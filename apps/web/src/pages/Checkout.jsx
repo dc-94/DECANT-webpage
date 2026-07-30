@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import SEO from '../components/public/SEO';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, getDoc } from 'firebase/firestore';
 import { useSocio } from '../context/SocioContext';
 

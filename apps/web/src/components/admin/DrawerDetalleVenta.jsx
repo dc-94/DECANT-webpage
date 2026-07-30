@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../../config/firebase';
+import { db } from '../@decant/firebase-client';
 import { doc, updateDoc } from 'firebase/firestore';
 
 // 📧 MAPA DE PLANTILLAS DE BREVO

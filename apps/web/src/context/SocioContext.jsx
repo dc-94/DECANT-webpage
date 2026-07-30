@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const SocioContext = createContext();

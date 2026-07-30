@@ -9,7 +9,7 @@ import ProductCard from '../components/public/ProductCard';
 import DynamicGuide from '../components/public/DynamicGuide';
 import Footer from '../components/layout/Footer';
 import { useSocio } from '../context/SocioContext';
-import { usePricingEngine } from '../hooks/usePricingEngine';
+import { usePricingEngine } from '@decant/core/react';
 
 const ShoppingBagIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">

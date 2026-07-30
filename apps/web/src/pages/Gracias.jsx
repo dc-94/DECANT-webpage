@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, getDoc } from 'firebase/firestore';
 
 const CheckIcon = ({ className }) => (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 // 👉 Importamos herramientas de consulta de Firestore
 import { doc, onSnapshot, collection, query, orderBy, limit, where } from 'firebase/firestore';
 import SEO from '../components/public/SEO'; 

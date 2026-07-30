@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import Footer from '../components/layout/Footer';
 // 👉 Importamos herramientas para la consulta de suscripciones
 import { collection, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 
 const StepIcons = [
   <svg className="w-8 h-8 text-brand-orange mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.773 2.853M7.228 22l.758-2.83M14.44 5.06h-.01M2.014 12.062H2" /></svg>,

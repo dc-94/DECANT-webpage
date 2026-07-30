@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';
 import SEO from '../components/public/SEO'; 
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, getDoc } from 'firebase/firestore';
 
 const WhatsappIcon = ({ className }) => (

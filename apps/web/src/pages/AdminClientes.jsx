@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';

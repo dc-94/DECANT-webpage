@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { collection, getDocs } from 'firebase/firestore';
 
 export function useDashboardMetrics(filtroActivo, fechaInicio, fechaFin) {

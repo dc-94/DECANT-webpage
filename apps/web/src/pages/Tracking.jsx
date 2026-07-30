@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'; 
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';

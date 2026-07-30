@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import SEO from '../components/public/SEO';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { db } from '../config/firebase'; 
+import { db } from '@decant/firebase-client'; 
 import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore'; 
 
 import { useSocio } from '../context/SocioContext';

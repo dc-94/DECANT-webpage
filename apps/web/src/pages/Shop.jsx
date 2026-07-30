@@ -9,7 +9,7 @@ import Footer from '../components/layout/Footer';
 
 // 👉 Nuevas importaciones para paginación de Firebase
 import { collection, query, where, orderBy, limit, startAfter } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 
 const ITEMS_POR_PAGINA = 20;
 const ITEMS_AL_CARGAR_MAS = 20;

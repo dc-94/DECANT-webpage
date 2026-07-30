@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../config/firebase';
+import { db } from '@decant/firebase-client';
 
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';

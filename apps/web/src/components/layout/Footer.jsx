@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../../config/firebase'; // 👉 ¡CORREGIDO AQUÍ! (Dos puntos dobles)
+import { db } from '../@decant/firebase-client'; // 👉 ¡CORREGIDO AQUÍ! (Dos puntos dobles)
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function Footer() {

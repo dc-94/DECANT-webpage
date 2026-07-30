@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../../config/firebase';
+import { db } from '../@decant/firebase-client';
 import { 
   collection, query, where, getDocs, writeBatch, 
   doc, increment, serverTimestamp 

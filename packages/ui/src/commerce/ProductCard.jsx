@@ -5,7 +5,7 @@ import BlobProducto from '../icons/BlobProducto';
 import { useSocio } from '../../context/SocioContext';
 
 // 👉 Importamos nuestro nuevo motor de precios
-import { usePricingEngine } from '../../hooks/usePricingEngine';
+import { usePricingEngine } from '../@decant/core/react';
 
 // 👉 Función de colores dinámicos (Sin el /40 porque el contenedor ya tiene opacity-15)
 const obtenerColorBlob = (categoria, subcategoria) => {
