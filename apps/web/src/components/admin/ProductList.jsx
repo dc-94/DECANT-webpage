@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { db } from "../@decant/firebase-client";
+import { db } from "@decant/firebase-client";
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from "firebase/firestore";
 
 export default function ProductList({ setProductoEnAccion }) {

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { db } from "../@decant/firebase-client";
+import { db } from "@decant/firebase-client";
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import toast from 'react-hot-toast'; // 👉 IMPORTAMOS LOS TOASTS
-import BlobProducto from "../icons/BlobProducto";
+import { BlobProducto } from '@decant/ui';
 
 const obtenerColorBlob = (categoria, subcategoria) => {
   const catStr = (categoria || "").toLowerCase();

@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { auth, googleProvider } from "@decant/firebase-client";
-
+import { auth, googleProvider } from './client.js';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -48,7 +47,6 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

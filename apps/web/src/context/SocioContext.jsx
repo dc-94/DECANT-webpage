@@ -1,11 +1,15 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '@decant/firebase-client';
+// SocioContext.jsx línea 2 — import directo, sin barrel
+import { db } from '@decant/firebase-client/client.js';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const SocioContext = createContext();
 
-export const useSocio = () => useContext(SocioContext);
-
+export const useSocio = () => {
+  const context = useContext(SocioContext);
+  if (!context) throw new Error('useSocio debe ser usado dentro de un SocioProvider');
+  return context;
+};
 export const SocioProvider = ({ children }) => {
   const [socio, setSocio] = useState(() => {
     const saved = sessionStorage.getItem('decant_socio');

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
-// 👉 Importamos nuestro nuevo hook
 import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 
 const Icons = {

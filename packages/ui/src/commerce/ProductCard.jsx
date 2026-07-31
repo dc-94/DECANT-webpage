@@ -1,11 +1,8 @@
 import { useState, memo } from 'react';
-import { useCart } from '../../context/CartContext';
 import { Link } from 'react-router-dom';
-import BlobProducto from '../icons/BlobProducto';
-import { useSocio } from '../../context/SocioContext';
-
-// 👉 Importamos nuestro nuevo motor de precios
-import { usePricingEngine } from '../@decant/core/react';
+import BlobProducto from '../icons/BlobProducto.jsx';
+import { formatPrice } from '@decant/core';
+import { usePricingEngine } from '@decant/core/react';
 
 // 👉 Función de colores dinámicos (Sin el /40 porque el contenedor ya tiene opacity-15)
 const obtenerColorBlob = (categoria, subcategoria) => {
@@ -32,9 +29,7 @@ const ShoppingBagIcon = memo(({ className }) => (
   </svg>
 ));
 
-const ProductCard = memo(function ProductCard({ producto }) {
-  const { addToCart } = useCart();
-  const { socio } = useSocio(); 
+const ProductCard = memo(function ProductCard({ producto, socio = null, onAddToCart }) {
   
   const [showQuantity, setShowQuantity] = useState(false);
   const [cantidad, setCantidad] = useState(1);
@@ -45,10 +40,6 @@ const ProductCard = memo(function ProductCard({ producto }) {
     precioEfectivo, 
     descuentoVIPAplicado 
   } = usePricingEngine(producto, socio);
-
-  const formatPrice = (price) => new Intl.NumberFormat('es-AR', {
-    style: 'currency', currency: 'ARS', maximumFractionDigits: 0
-  }).format(price || 0);
 
   const stock = producto.stock || 0;
   const sinStock = stock <= 0 && !producto.aPedido;
@@ -116,7 +107,7 @@ const ProductCard = memo(function ProductCard({ producto }) {
           <div className="h-5 flex items-end mb-1">
             {descuentoVIPAplicado ? (
               <div className="flex flex-row items-center bg-extra-black text-brand-orange rounded-[4px] overflow-hidden w-max shadow-sm px-2 py-0.5">
-                <span className="text-[9px] font-black uppercase tracking-widest">Socio {socio.badge}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">Socio {socio?.badge ?? ''}</span>
               </div>
             ) : mostrarLabelNormal ? (
               <div className="flex flex-row items-center bg-white border border-brand-orange text-brand-orange rounded-[4px] overflow-hidden w-max shadow-sm">
@@ -156,9 +147,11 @@ const ProductCard = memo(function ProductCard({ producto }) {
                 
                 // 👉 Usamos precioEfectivo validado por el hook
                 const productoParaBolsa = { ...producto, precioFinal: precioEfectivo };
-                if (descuentoVIPAplicado) productoParaBolsa.descuentoNombre = `Socio ${socio.badge}`;
-                
-                addToCart(productoParaBolsa, cantidad); 
+                if (descuentoVIPAplicado) {
+                  productoParaBolsa.tipoDescuento = 'SOCIO';
+                  productoParaBolsa.descuentoNombre = `Socio ${socio?.badge ?? ''}`.trim();
+                }
+                onAddToCart(productoParaBolsa, cantidad); 
                 setShowQuantity(false); setCantidad(1);                
               }} className="bg-brand-orange text-brand-white h-full px-3 flex items-center justify-center hover:bg-dark-orange transition-colors outline-none">
               <ShoppingBagIcon className="w-4 h-4" />

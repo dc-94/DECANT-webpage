@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useCatalog } from '../context/CatalogContext';
 import MainNavbar from '../components/layout/MainNavbar';
-import BlobProducto from '../components/icons/BlobProducto';
+import { BlobProducto } from '@decant/ui';
 import ProductCard from '../components/public/ProductCard';
 import DynamicGuide from '../components/public/DynamicGuide';
 import Footer from '../components/layout/Footer';

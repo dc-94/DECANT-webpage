@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useCatalog } from '../../context/CatalogContext';
 import ProductCard from '../public/ProductCard';
 import { Link } from 'react-router-dom';
-import BlobProducto from '../icons/BlobProducto'; // Para la versión móvil
+import { BlobProducto } from '@decant/ui';
 
 // Diccionario de colores para el Blob en la versión móvil
 const BLOB_CLASSES = {

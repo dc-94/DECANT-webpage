@@ -4,7 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   optimizeDeps: {
-  exclude: ['@decant/core', '@decant/firebase-client']
+  exclude: ['@decant/core', '@decant/firebase-client', '@decant/ui']
+},
+resolve: {
+  dedupe: ['react', 'react-dom', 'react-router-dom']
 },
   plugins: [react()],
 })

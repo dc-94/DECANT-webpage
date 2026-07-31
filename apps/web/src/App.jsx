@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 // CONTEXTOS (Estos se mantienen igual porque son el motor de la app)
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from '@decant/firebase-client';
 import { CatalogProvider } from './context/CatalogContext';
 import { CartProvider } from './context/CartContext';
 import { SocioProvider } from './context/SocioContext'; 
@@ -55,8 +55,9 @@ function App() {
       <ErrorBoundary>
         <AuthProvider>
           <CatalogProvider>
-            <CartProvider>
-              <SocioProvider> 
+            
+              <SocioProvider>
+                <CartProvider> 
                 <style>{`
                   body.lock-loader, body.lock-age { overflow: hidden !important; }
                 `}</style>
@@ -132,8 +133,8 @@ function App() {
                     </Routes>
                   </Suspense>
                 </Router>
-              </SocioProvider>
             </CartProvider>
+              </SocioProvider>
           </CatalogProvider>
         </AuthProvider>
       </ErrorBoundary>

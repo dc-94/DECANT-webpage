@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from '@decant/firebase-client';
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {

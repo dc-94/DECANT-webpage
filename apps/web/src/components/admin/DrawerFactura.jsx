@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../@decant/firebase-client'; 
+import { db } from '@decant/firebase-client'; 
 import { collection, onSnapshot, writeBatch, doc, increment, serverTimestamp, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
 
 export default function DrawerFactura({ isOpen, onClose, productos }) {

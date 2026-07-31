@@ -19,7 +19,8 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.13.2",
     "@decant/core": "workspace:*",
-"@decant/firebase-client": "workspace:*"
+    "@decant/firebase-client": "workspace:*",
+    "@decant/ui": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

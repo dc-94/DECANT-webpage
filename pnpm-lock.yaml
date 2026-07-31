@@ -20,6 +20,15 @@ importers:
       '@cloudinary/url-gen':
         specifier: ^1.22.0
         version: 1.22.0
+      '@decant/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@decant/firebase-client':
+        specifier: workspace:*
+        version: link:../../packages/firebase-client
+      '@decant/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       firebase:
         specifier: ^12.11.0
         version: 12.16.0
@@ -78,6 +87,37 @@ importers:
       vite:
         specifier: ^8.0.1
         version: 8.1.5(@types/node@26.1.2)(jiti@2.7.0)
+
+  packages/core:
+    devDependencies:
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+
+  packages/firebase-client:
+    dependencies:
+      firebase:
+        specifier: ^12.11.0
+        version: 12.16.0
+    devDependencies:
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.2.8(react@19.2.8)
+
+  packages/ui:
+    dependencies:
+      '@decant/core':
+        specifier: workspace:*
+        version: link:../core
+      react:
+        specifier: '>=18'
+        version: 19.2.8
+      react-router-dom:
+        specifier: '>=7'
+        version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
 
 packages:
 
