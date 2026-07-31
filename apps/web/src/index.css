@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@source "../../../packages/ui/src";
 /* 2. Definición de Variables y Tema */
 @theme {
   --color-extra-black: #10120A;

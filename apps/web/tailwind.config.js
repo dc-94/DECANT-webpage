@@ -3,6 +3,7 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+  '../../packages/ui/src/**/*.{js,jsx}', 
   ],
   // En v4, no necesitas duplicar el theme aquí si ya está en el CSS
   theme: {

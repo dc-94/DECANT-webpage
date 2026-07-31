@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useCatalog } from '../../context/CatalogContext';
 import { useSocio } from '../../context/SocioContext';
+import { calcularPrecio } from '@decant/core';
 import { usePricingEngine } from '@decant/core/react';
 
 // Íconos
