@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { calcularPrecio } from '@decant/core/react'; // Ajusta la ruta según tu estructura
+import { calcularPrecio } from '@decant/core'; // Ajusta la ruta según tu estructura
 import { useSocio } from './SocioContext'; // Ajusta la ruta según tu estructura
 
 // 1. Creamos el contexto

@@ -1,37 +1,16 @@
 {
-  "name": "web-decant",
+  "packageManager": "pnpm@11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
+  "name": "decant",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@cloudinary/react": "^1.14.4",
-    "@cloudinary/url-gen": "^1.22.0",
-    "firebase": "^12.11.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-helmet-async": "^3.0.0",
-    "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.13.2"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@tailwindcss/postcss": "^4.2.2",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "autoprefixer": "^10.4.27",
-    "eslint": "^9.39.4",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.4.0",
-    "postcss": "^8.5.8",
-    "tailwindcss": "^4.2.2",
-    "vite": "^8.0.1"
+    "turbo": "^2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
