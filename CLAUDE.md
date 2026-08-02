@@ -37,63 +37,53 @@ pnpm workspaces + Turborepo · React 19 · Vite 8 (→ Next.js en E4, solo `seal
 4. **`firebase-client` (SDK navegador) y `firebase-admin` (SDK servidor) son packages
    separados** para que el Admin SDK nunca termine en un bundle de browser.
 5. **Tailwind 4 escanea vía `@source` en el CSS**, no vía `content` del config. Todo package
-   con JSX estilado necesita su ruta en `@source` (ver `apps/web/src/index.css`).
+   con JSX estilado necesita su ruta en `@source` (ver `apps/public/src/index.css`).
 6. **Dentro de un package, imports relativos** (`./client.js`). El nombre del paquete
    (`@decant/...`) es solo para consumirlo desde afuera. (Un auto-import rompe el build.)
 
 ---
 
-## Estado actual: E0 COMPLETO ✅
+## Estado actual: E1 COMPLETO ✅
 
-Rama: `chore/monorepo-e0` (commiteada, **sin mergear a main todavía**).
+Rama de trabajo: `parallel-building` (basada en `main` = E0, **sin mergear ni deployar**).
 
-Lo hecho en E0:
-- Scaffold pnpm + Turborepo (`pnpm-workspace.yaml`, `turbo.json`, `package.json` raíz, `.npmrc`).
-- App actual movida a `apps/web` (temporal; se parte en E1). `git mv` para conservar historial.
-- `public/` y `.env` movidos a `apps/web/`.
-- Packages extraídos:
-  - **`@decant/core`** — pricing como fuente única. `calcularPrecio` con correcciones:
-    `redondearCentena` unificado, clamp de `porcentaje` (evita precios negativos),
-    `tipoDescuento: 'SOCIO'` con shim `@deprecated` sobre el viejo `descuentoNombre.includes('Socio')`,
-    fallbacks simétricos, `usePricingEngine` con deps primitivas.
-  - **`@decant/firebase-client`** — `client.js` (init) + `AuthContext` único (Google-only, mata dup A6).
-  - **`@decant/ui`** — `ProductCard` (presentacional, recibe `socio` y `onAddToCart` por props) + `BlobProducto`.
-- `useDashboardMetrics` volvió a la app (es hook de datos, no lógica pura → no va en core).
-- Fix Tailwind 4: `@source "../../../packages/ui/src"` en `apps/web/src/index.css`.
+E0 (base, ya en `main`): monorepo pnpm+Turborepo; `@decant/core` (pricing fuente única,
+`tipoDescuento: 'SOCIO'`, `usePricingEngine`), `@decant/firebase-client` (`client.js` + `AuthContext`
+Google-only), `@decant/ui` (`ProductCard` por props + `BlobProducto`); fix Tailwind `@source`.
 
-Verificado en local: app idéntica a antes, productos cargan, **precio VIP redondea a la centena**
-(prueba de que core es la fuente única real).
+Lo hecho en E1 — `apps/web` partido en dos apps deployables independientes:
+- **`apps/public`** (name `public`, dev :5173) → decant.online. Hereda el historial de `apps/web`.
+  Rutas: Home, Shop, ProductDetail, Checkout, Gracias, Ayuda, Manifiesto, Suscripciones,
+  CheckoutSuscripciones, GraciasSuscripciones, Tracking, CatalogoRapido.
+  Providers: `Auth > Catalog > Socio > Cart`.
+- **`apps/sealed`** (name `sealed`, dev :5174) → sealed.decantclub.online.
+  Rutas: Login, AdminSelector, locked_cellar/storefront, AdminInventario/Ventas/Clientes/
+  Facturacion/Ajustes. Providers: `Auth > Catalog` (Catalog lo usa `locked_storefront`).
+- **Eliminada la host-detection** (`window.location.hostname`, hallazgo **A3**) y el bug
+  `currentHost === '[www.decant.online]...'`. El código admin ya no viaja en el bundle público.
+- **`@decant/ui`** sumó `ErrorBoundary`, `ScrollToTop` (presentacionales compartidos) y
+  `lazyWithRetry` (recupera chunks vencidos tras un redeploy en vez de caer al ErrorBoundary).
+- Cada app tiene su `vite.config.js` (puerto fijo `strictPort`), `index.html`, `vercel.json`,
+  `.env` (gitignored, copiado a cada app) e `index.css` con `@source "../../../packages/ui/src"`.
 
-⚠️ **NO mergear a main ni deployar el E0.** `sealed.decantclub.online` en producción corre
-la versión vieja; tocarlo con el E0 sin cerrar rompe el panel admin en vivo.
+Verificado en local (ambas apps, dev separado): idénticas a antes del split. Público probado
+end-to-end salvo pago real: catálogo, filtros, product detail, **add-to-cart** (persiste en
+`localStorage decant_cart`), checkout y suscripciones renderizan sin errores de consola. Sealed:
+login renderiza y `ProtectedRoute` redirige a `/login`.
+
+⚠️ **NO mergear a main ni deployar.** `sealed.decantclub.online` en prod corre la versión vieja.
 
 ---
 
-## Próximo paso: E1 — split de apps
+## Próximo paso: E2 — piso de seguridad
 
-**Objetivo:** partir `apps/web` en dos apps deployables independientes:
-- **`apps/public`** → decant.online (Home, Shop, ProductDetail, Checkout, CheckoutSuscripciones, Tracking, Gracias)
-- **`apps/sealed`** → sealed.decantclub.online (Login, AdminSelector, LockedCellar, LockedStorefront y sus drawers/forms)
+Ver roadmap. **E2 es la de mayor retorno** (cierra 11 de 26 hallazgos, no depende de Next):
+`firestore.rules` (hoy no existe → sangrado más grave), colección `catalogo_publico` de solo
+lectura, App Check, y validación server-side del webhook de Mercado Pago.
 
-**Lo que E1 cierra:** hallazgo **A3** — hoy `App.jsx` decide admin/público en runtime con
-`window.location.hostname`. Al partir, cada app sabe lo que es y **se elimina esa detección**.
-El código admin deja de viajar en el bundle público.
-
-**Cómo hacerlo (sin reescribir componentes):**
-1. Crear `apps/public` y `apps/sealed`, cada una con su `package.json`, `vite.config.js`,
-   `index.html`, `.env` y `vercel.json` propios.
-2. Repartir `apps/web/src` según entorno. Lo compartido (contextos comunes, layout base)
-   que hoy usan ambos → evaluar si sube a `@decant/ui` o se duplica mínimamente.
-3. Cada app arma su propio árbol de providers en su `App.jsx`, **sin** `window.location`.
-   ⚠️ Respetar el orden: **`SocioProvider` envuelve a `CartProvider`** (Cart consume `useSocio`).
-4. Cada `App.jsx` con su router propio y solo sus rutas.
-5. Borrar `apps/web` cuando las dos apps levanten.
-6. Actualizar `@source` de Tailwind en cada app y el `firebase.json` (paths de deploy/build).
-7. Resolver `sealed.localhost` para dev local (mapear en `/etc/hosts` o correr cada app en su puerto).
-
-**Chequeo de cierre E1:** ambas apps levantan por separado (`pnpm --filter public dev`,
-`pnpm --filter sealed dev`), se ven igual que antes, y ya no existe `window.location.hostname`
-en el código.
+Antes de E2, dos verificaciones funcionales que quedaron fuera de mi alcance (necesitan login/servicios):
+- **CRUD admin** logueado con Google (carga de productos, facturas, ventas offline).
+- **Pago Mercado Pago** en checkout con credenciales reales.
 
 ---
 
@@ -102,8 +92,8 @@ en el código.
 | Etapa | Qué | Estado |
 |---|---|---|
 | **E0** | Scaffold monorepo + extracción DRY (core/ui/firebase-client) | ✅ Hecho |
-| **E1** | Split `apps/public` + `apps/sealed`, eliminar host-detection | ← siguiente |
-| **E2** | Piso de seguridad: `firestore.rules`, `catalogo_publico`, App Check, webhook MP | Pendiente |
+| **E1** | Split `apps/public` + `apps/sealed`, eliminar host-detection | ✅ Hecho |
+| **E2** | Piso de seguridad: `firestore.rules`, `catalogo_publico`, App Check, webhook MP | ← siguiente |
 | **E3** | Quick wins restantes (dedup, CORS www, placeholder de imágenes) | Pendiente |
 | **E4** | Migrar `apps/sealed` a Next.js (middleware, server components) | Pendiente |
 
@@ -118,21 +108,27 @@ Es el sangrado de seguridad más grave (no existe `firestore.rules`).
   de link por prop) en E4, porque con Next el `Link` es otro.
 - **`CartContext` depende de `SocioContext`** → desacoplar cuando la validación de socio pase
   al servidor (E2): el carrito debería recibir el descuento como dato, no ir a otro contexto.
-- **Bug preexistente en `App.jsx`:** `currentHost === '[www.decant.online](...)'` tiene sintaxis
-  de markdown pegada de un copy/paste → esa comparación nunca matchea. Se limpia al partir en E1.
-- **`useDashboardMetrics`** quedó en la app (admin). En E1 va a `apps/sealed`.
+- **`CatalogContext` está duplicado** en `apps/public` y `apps/sealed` (lo necesitan ambas;
+  es un contexto con Firebase, no puede ir a `@decant/ui` por regla de oro #3). Candidato a un
+  paquete `@decant/catalog` compartido cuando exista `catalogo_publico` (E2+).
 - **`functions/` está fuera del workspace pnpm.** En E2, cuando importe `@decant/core`, hay que
   meterlo al workspace y resolver que Firebase Deploy no sigue symlinks de pnpm (tiene su maña).
+- **`favicon.svg` no existe:** los `index.html` lo referencian pero en assets sólo hay
+  `favicon.png` → favicon roto (preexistente de E0). Agregar el `.svg` o corregir el `<link>`.
+- **`tailwind.config.js` (`content`) quedó inerte** con Tailwind 4: el scan real es `@source`
+  en el CSS. Se mantiene por paridad; se puede borrar en ambas apps.
+- **Código admin muerto en `apps/sealed`:** `components/admin/ProductList.jsx` y
+  `components/admin/ventas/*` no los importa nadie hoy (¿WIP?). Se movieron, no se borraron.
 
 ---
 
 ## Primeras acciones sugeridas para esta sesión de Claude Code
 
-1. Verificar que la rama es `chore/monorepo-e0` y que el árbol coincide con lo descrito arriba
-   (`pnpm ls -r --depth -1` debe listar: `decant`, `web`, `@decant/core`, `@decant/firebase-client`, `@decant/ui`).
-2. Correr `pnpm --filter web build` para confirmar que el E0 compila limpio.
-3. Empezar E1 según el plan de arriba, **una app por vez**, verificando build tras cada paso.
-4. Convención de commits: `chore(e1): ...`, un commit por sub-fase, para poder bisectar.
+1. Verificar rama `parallel-building` y que `pnpm ls -r --depth -1` liste:
+   `decant`, `public`, `sealed`, `@decant/core`, `@decant/firebase-client`, `@decant/ui`.
+2. Correr `pnpm build` (turbo) para confirmar que ambas apps compilan limpio.
+3. Dev: `pnpm --filter public dev` (:5173) y `pnpm --filter sealed dev` (:5174) por separado.
+4. Empezar E2 (piso de seguridad). Convención de commits: `chore(e2): ...`, uno por sub-fase.
 
 ## Reglas de trabajo (aprendidas en E0)
 

@@ -2,18 +2,14 @@ import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
-// CONTEXTOS (motor de la app pública)
 import { AuthProvider } from '@decant/firebase-client';
 import { CatalogProvider } from './context/CatalogContext';
 import { CartProvider } from './context/CartContext';
 import { SocioProvider } from './context/SocioContext';
-
-// COMPONENTES GLOBALES LIVIANOS
 import Loader from './components/public/Loader';
 import AgeGate from './components/public/AgeGate';
 import { ScrollToTop, ErrorBoundary, lazyWithRetry } from '@decant/ui';
 
-// RUTAS PÚBLICAS
 const Home = lazyWithRetry(() => import('./pages/Home'));
 const Shop = lazyWithRetry(() => import('./pages/Shop'));
 const Checkout = lazyWithRetry(() => import('./pages/Checkout'));
@@ -33,6 +29,7 @@ function App() {
       <ErrorBoundary>
         <AuthProvider>
           <CatalogProvider>
+            {/* SocioProvider debe envolver a CartProvider: CartContext consume useSocio */}
             <SocioProvider>
               <CartProvider>
                 <style>{`

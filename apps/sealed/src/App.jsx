@@ -2,15 +2,11 @@ import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
-// CONTEXTOS (motor del panel administrativo)
 import { AuthProvider } from '@decant/firebase-client';
-import { CatalogProvider } from './context/CatalogContext';
-
-// COMPONENTES GLOBALES LIVIANOS
+import { CatalogProvider } from './context/CatalogContext'; // lo consume locked_storefront
 import ProtectedRoute from './components/admin/ProtectedRoute';
 import { ScrollToTop, ErrorBoundary, lazyWithRetry } from '@decant/ui';
 
-// RUTAS DEL PANEL
 const Login = lazyWithRetry(() => import('./pages/Login'));
 const AdminSelector = lazyWithRetry(() => import('./pages/AdminSelector'));
 const LockedCellar = lazyWithRetry(() => import('./pages/locked_cellar'));
