@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
@@ -11,21 +11,21 @@ import { SocioProvider } from './context/SocioContext';
 // COMPONENTES GLOBALES LIVIANOS
 import Loader from './components/public/Loader';
 import AgeGate from './components/public/AgeGate';
-import { ScrollToTop, ErrorBoundary } from '@decant/ui';
+import { ScrollToTop, ErrorBoundary, lazyWithRetry } from '@decant/ui';
 
 // RUTAS PÚBLICAS
-const Home = lazy(() => import('./pages/Home'));
-const Shop = lazy(() => import('./pages/Shop'));
-const Checkout = lazy(() => import('./pages/Checkout'));
-const Gracias = lazy(() => import('./pages/Gracias'));
-const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const Ayuda = lazy(() => import('./pages/Ayuda'));
-const Manifiesto = lazy(() => import('./pages/Manifiesto'));
-const Suscripciones = lazy(() => import('./pages/Suscripciones'));
-const CheckoutSuscripciones = lazy(() => import('./pages/CheckoutSuscripciones'));
-const GraciasSuscripciones = lazy(() => import('./pages/GraciasSuscripciones'));
-const Tracking = lazy(() => import('./pages/Tracking'));
-const CatalogoRapido = lazy(() => import('./pages/CatalogoRapido'));
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const Shop = lazyWithRetry(() => import('./pages/Shop'));
+const Checkout = lazyWithRetry(() => import('./pages/Checkout'));
+const Gracias = lazyWithRetry(() => import('./pages/Gracias'));
+const ProductDetail = lazyWithRetry(() => import('./pages/ProductDetail'));
+const Ayuda = lazyWithRetry(() => import('./pages/Ayuda'));
+const Manifiesto = lazyWithRetry(() => import('./pages/Manifiesto'));
+const Suscripciones = lazyWithRetry(() => import('./pages/Suscripciones'));
+const CheckoutSuscripciones = lazyWithRetry(() => import('./pages/CheckoutSuscripciones'));
+const GraciasSuscripciones = lazyWithRetry(() => import('./pages/GraciasSuscripciones'));
+const Tracking = lazyWithRetry(() => import('./pages/Tracking'));
+const CatalogoRapido = lazyWithRetry(() => import('./pages/CatalogoRapido'));
 
 function App() {
   return (

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
@@ -8,18 +8,18 @@ import { CatalogProvider } from './context/CatalogContext';
 
 // COMPONENTES GLOBALES LIVIANOS
 import ProtectedRoute from './components/admin/ProtectedRoute';
-import { ScrollToTop, ErrorBoundary } from '@decant/ui';
+import { ScrollToTop, ErrorBoundary, lazyWithRetry } from '@decant/ui';
 
 // RUTAS DEL PANEL
-const Login = lazy(() => import('./pages/Login'));
-const AdminSelector = lazy(() => import('./pages/AdminSelector'));
-const LockedCellar = lazy(() => import('./pages/locked_cellar'));
-const LockedStorefront = lazy(() => import('./pages/locked_storefront'));
-const AdminInventario = lazy(() => import('./pages/AdminInventario'));
-const AdminVentas = lazy(() => import('./pages/AdminVentas'));
-const AdminClientes = lazy(() => import('./pages/AdminClientes'));
-const AdminFacturacion = lazy(() => import('./pages/AdminFacturacion'));
-const AdminAjustes = lazy(() => import('./pages/AdminAjustes'));
+const Login = lazyWithRetry(() => import('./pages/Login'));
+const AdminSelector = lazyWithRetry(() => import('./pages/AdminSelector'));
+const LockedCellar = lazyWithRetry(() => import('./pages/locked_cellar'));
+const LockedStorefront = lazyWithRetry(() => import('./pages/locked_storefront'));
+const AdminInventario = lazyWithRetry(() => import('./pages/AdminInventario'));
+const AdminVentas = lazyWithRetry(() => import('./pages/AdminVentas'));
+const AdminClientes = lazyWithRetry(() => import('./pages/AdminClientes'));
+const AdminFacturacion = lazyWithRetry(() => import('./pages/AdminFacturacion'));
+const AdminAjustes = lazyWithRetry(() => import('./pages/AdminAjustes'));
 
 function App() {
   return (
