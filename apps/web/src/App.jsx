@@ -11,9 +11,8 @@ import { SocioProvider } from './context/SocioContext';
 // COMPONENTES GLOBALES LIVIANOS
 import Loader from './components/public/Loader';
 import AgeGate from './components/public/AgeGate';
-import ScrollToTop from './components/public/ScrollToTop';
 import ProtectedRoute from './components/admin/ProtectedRoute';
-import ErrorBoundary from './components/layout/ErrorBoundary'; 
+import { ScrollToTop, ErrorBoundary } from '@decant/ui';
 
 // RUTAS PÚBLICAS
 const Home = lazy(() => import('./pages/Home'));
