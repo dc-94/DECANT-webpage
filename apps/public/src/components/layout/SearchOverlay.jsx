@@ -20,14 +20,25 @@ const getBlobClass = (sub) => {
 };
 
 export default function SearchOverlay({ isOpen, onClose }) {
-  const { productos } = useCatalog();
+  const { productos, fetchAllProductos } = useCatalog();
   const [query, setQuery] = useState('');
   const inputRef = useRef(null);
+  const catalogoCargado = useRef(false);
+
+  // El buscador filtra el caché en memoria, que según la página trae solo un subset
+  // (el Home carga los 10 más nuevos). Al abrir, cargamos el catálogo completo una vez
+  // para poder encontrar cualquier producto, no solo los ya cacheados.
+  useEffect(() => {
+    if (isOpen && !catalogoCargado.current) {
+      catalogoCargado.current = true;
+      fetchAllProductos();
+    }
+  }, [isOpen, fetchAllProductos]);
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
-      document.body.style.overflow = 'hidden'; 
+      document.body.style.overflow = 'hidden';
     } else {
       setQuery('');
       document.body.style.overflow = 'unset';
