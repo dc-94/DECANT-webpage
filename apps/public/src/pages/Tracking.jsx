@@ -205,7 +205,7 @@ export default function TrackingPedido() {
                   <h4 className="font-playfair font-bold text-lg text-dark-blue leading-tight">{item.nombre}</h4>
                   <p className="font-poppins text-[9px] uppercase tracking-widest text-light-blue mt-1">Cantidad: {item.cantidad}</p>
                 </div>
-                <div className="font-poppins text-sm font-semibold text-dark-blue">${(calcularPrecio(item, socio).precioEfectivo * item.cantidad).toLocaleString()}</div>
+                <div className="font-poppins text-sm font-semibold text-dark-blue">${((item.precioFinal || 0) * item.cantidad).toLocaleString()}</div>
               </div>
             )) : (
               <div className="font-poppins text-sm text-dark-blue pb-6 border-b border-dark-blue/5 font-bold">Membresía: {pedido.plan}</div>

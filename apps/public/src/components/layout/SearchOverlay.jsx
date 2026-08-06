@@ -108,15 +108,11 @@ export default function SearchOverlay({ isOpen, onClose }) {
                 {resultados.map((producto) => {
                   const blobClass = getBlobClass(producto.subcategoria || producto.categoria);
                   const sinStock = producto.stock <= 0 && !producto.aPedido;
-                  
-                  {/* GENERACIÓN SEGURA DE LA URL LARGA */}
-                  const catUrl = (producto.categoria || 'catalogo').toLowerCase().trim();
-                  const subUrl = (producto.subcategoria || 'seleccion').toLowerCase().trim();
 
                   return (
-                    <Link 
-                      key={producto.id} 
-                      to={`/shop/${catUrl}/${subUrl}/${producto.id}`} 
+                    <Link
+                      key={producto.id}
+                      to={`/producto/${producto.slug || producto.id}`}
                       onClick={onClose}
                       className="flex items-center gap-4 p-4 border-b border-light-blue/10 active:bg-extra-black transition-colors"
                     >
