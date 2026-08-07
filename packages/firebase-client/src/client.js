@@ -16,6 +16,9 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+// Fuerza el selector de cuenta de Google en cada login, en vez de auto-usar la
+// sesión ya abierta en el navegador (permite elegir/agregar otra cuenta).
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 export const db = getFirestore(app);
 
 
