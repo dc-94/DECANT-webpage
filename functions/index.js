@@ -7,9 +7,14 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+const BASE_URL = 'https://www.decantclub.online';
+
 const ALLOWED_ORIGINS = [
-  'http://localhost:5173',      
-  'https://decant.online'           
+  'http://localhost:5173',              // dev público
+  'http://localhost:5174',              // dev sealed
+  'https://decantclub.online',
+  'https://www.decantclub.online',
+  'https://sealed.decantclub.online'
 ];
 
 const handleCORS = (req, res) => {
@@ -188,7 +193,7 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
           params: { 
             nombre: formData.nombre || 'Cliente', 
             orden: numeroOrdenCorto, 
-            link_tracking: `${ALLOWED_ORIGINS[1]}/pedido/${pedidoIdReal}` 
+            link_tracking: `${BASE_URL}/pedido/${pedidoIdReal}`
           }
         })
       });

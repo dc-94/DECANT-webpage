@@ -5,7 +5,6 @@ import SearchOverlay from './SearchOverlay';
 import { useCart } from '../../context/CartContext';
 import CartDrawer from '../cart/CartDrawer';
 
-// 👉 Nuevas importaciones para el sistema de Socios VIP
 import { useSocio } from '../../context/SocioContext';
 import ModalSocio from '../public/ModalSocio';
 
@@ -13,7 +12,6 @@ export default function MainNavbar() {
   const { menuTree, cargando, productos } = useCatalog();
   const { totalItems, isCartOpen, setIsCartOpen, justAdded } = useCart();
   
-  // 👉 Traemos la lógica de socios
   const { socio, logoutSocio } = useSocio();
   const [modalSocioOpen, setModalSocioOpen] = useState(false);
 
@@ -123,7 +121,6 @@ export default function MainNavbar() {
 
           <div className="flex-1 flex justify-end gap-5 md:gap-6 items-center text-brand-white">
             
-            {/* 👉 BOTONES DE SISTEMA VIP (DESKTOP) */}
             {socio ? (
               <div className="hidden md:flex items-center gap-4">
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange border border-brand-orange/30 px-3 py-1 rounded">
@@ -167,7 +164,7 @@ export default function MainNavbar() {
         </div>
 
         {/* =========================================
-            MENU DESKTOP (GLASSMORPHISM CLARO + FILAS HORIZONTALES)
+            MENU DESKTOP 
             ========================================= */}
         <div className={`absolute top-full left-0 w-full bg-neutral-white/75 backdrop-blur-md transition-all duration-700 overflow-hidden hidden md:block border-t border-dark-blue/10 ${desktopMenuOpen ? 'max-h-[85vh] opacity-100' : 'max-h-0 opacity-0 border-transparent'}`}>
           
@@ -208,7 +205,7 @@ export default function MainNavbar() {
                             Ver todos los {catMadre}
                           </Link>
 
-                          {/* 👇 CONTENEDOR HORIZONTAL PARA LAS SUBCATEGORÍAS (Desktop) */}
+                          {/*  CONTENEDOR HORIZONTAL PARA LAS SUBCATEGORÍAS (Desktop) */}
                           <div className="flex flex-row flex-wrap justify-center items-start gap-x-16 gap-y-10 w-full">
                             {Object.entries(subcategorias).map(([sub, varietales]) => {
                               const isSubOpen = openSub === sub;
@@ -284,11 +281,39 @@ export default function MainNavbar() {
             onScroll={handleScrollArea}
             className="absolute inset-0 overflow-y-auto no-scrollbar py-12 px-6 flex flex-col items-center text-center"
           >
-            <div className="mb-14 drop-shadow-sm">
-              <Link to="/shop" onClick={() => setMobileMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-[0.3em] text-brand-orange pb-2 border-b border-brand-orange/30">
-                Ver todo el catálogo
-              </Link>
-            </div>
+            {/* ACCESO SOCIO — destacado, primero en el menú */}
+          <div className="w-full max-w-[280px] mb-10">
+            {socio ? (
+              <div className="flex items-center justify-between bg-brand-orange/10 border border-brand-orange/40 rounded-xl px-5 py-3.5 drop-shadow-sm">
+                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-brand-orange">
+                  Hola, {socio.badge}
+                </span>
+                <button
+                  onClick={() => { logoutSocio(); setMobileMenuOpen(false); }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-extra-black/60 hover:text-brand-orange transition-colors outline-none"
+                >
+                  Salir
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setModalSocioOpen(true); setMobileMenuOpen(false); }}
+                className="w-full flex items-center justify-center gap-2 bg-brand-orange text-brand-white rounded-xl px-5 py-4 text-xs font-black uppercase tracking-[0.2em] hover:bg-dark-orange transition-colors drop-shadow-md outline-none"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Soy Socio
+              </button>
+            )}
+          </div>
+
+          {/* Ver todo el catálogo */}
+          <div className="mb-14 drop-shadow-sm">
+            <Link to="/shop" onClick={() => setMobileMenuOpen(false)} className="text-[11px] font-poppins font-normal uppercase tracking-[0.3em] text-brand-orange pb-2 border-b border-brand-orange/30">
+              Ver todo el catálogo
+            </Link>
+          </div>
 
             {menuTreeFiltrado.map(([catMadre, subcategorias]) => {
               const isCatOpen = openCat === catMadre;
@@ -350,15 +375,9 @@ export default function MainNavbar() {
             })}
 
             <div className="mt-12 flex flex-col gap-6 pt-10 border-t border-dark-blue/10 w-full max-w-[200px]">
-              <Link to="/suscripciones" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Suscripciones</Link>
-              <Link to="/manifiesto" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Manifiesto</Link>
+              <Link to="/suscripciones" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-playfair italic text-brand-orange hover:text-dark-orange drop-shadow-md">Suscripciones</Link>
+              <Link to="/manifiesto" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md">Manifiesto</Link> 
               
-              {/* 👉 BOTONES DE SISTEMA VIP (MOBILE) */}
-              {socio ? (
-                 <button onClick={() => { logoutSocio(); setMobileMenuOpen(false); }} className="text-2xl font-playfair italic text-brand-orange drop-shadow-md text-left outline-none">Salir ({socio.badge})</button>
-              ) : (
-                 <button onClick={() => { setModalSocioOpen(true); setMobileMenuOpen(false); }} className="text-2xl font-playfair italic text-extra-black hover:text-brand-orange drop-shadow-md text-left outline-none">Soy Socio</button>
-              )}
             </div>
           </div>
 

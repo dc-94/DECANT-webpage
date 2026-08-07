@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
 
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 
 // IMPORTACIONES DE DRAWERS
@@ -66,30 +66,41 @@ export default function AdminVentas() {
     if (!segundaConfirmacion) return;
 
     try {
-      const batch = writeBatch(db);
+  const batch = writeBatch(db);
 
-      // 1. Recorremos el carrito del pedido para devolver el stock
-      if (pedidoSeleccionado && pedidoSeleccionado.cart) {
-        pedidoSeleccionado.cart.forEach(item => {
-          const prodRef = doc(db, 'productos', item.id);
-          batch.update(prodRef, { stock: increment(item.cantidad) });
-        });
+  // 1. Devolvemos stock SOLO a productos que todavía existen.
+  //    Una venta puede referenciar un producto ya discontinuado; en ese caso
+  //    se omite la devolución en vez de abortar todo el borrado.
+  if (pedidoSeleccionado?.cart) {
+    const omitidos = [];
+    for (const item of pedidoSeleccionado.cart) {
+      const prodRef = doc(db, 'productos', item.id);
+      const prodSnap = await getDoc(prodRef);
+      if (prodSnap.exists()) {
+        batch.update(prodRef, { stock: increment(item.cantidad) });
+      } else {
+        omitidos.push(item.nombre || item.id);
       }
-
-      // 2. Agregamos la eliminación del pedido al lote
-      const pedidoRef = doc(db, 'pedidos', pedidoId);
-      batch.delete(pedidoRef);
-
-      // 3. Ejecutamos todo de golpe
-      await batch.commit();
-
-      setIsDetalleOpen(false);
-      setPedidoSeleccionado(null);
-      alert("Venta eliminada y stock restaurado correctamente.");
-    } catch (error) {
-      console.error("Error al eliminar la venta:", error);
-      alert("Hubo un error al intentar eliminar la venta y restaurar el stock.");
     }
+    if (omitidos.length) {
+      console.warn('Productos ya inexistentes, sin restaurar stock:', omitidos);
+    }
+  }
+
+  // 2. Eliminamos el pedido
+  const pedidoRef = doc(db, 'pedidos', pedidoId);
+  batch.delete(pedidoRef);
+
+  // 3. Commit atómico
+  await batch.commit();
+
+  setIsDetalleOpen(false);
+  setPedidoSeleccionado(null);
+  alert("Venta eliminada y stock restaurado correctamente.");
+} catch (error) {
+  console.error("Error al eliminar la venta:", error);
+  alert("Hubo un error al intentar eliminar la venta y restaurar el stock.");
+}
   };
 
   const handleReenviarTracking = async (pedido) => {

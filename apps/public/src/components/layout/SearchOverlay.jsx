@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCatalog } from '../../context/CatalogContext';
-import ProductCard from '../public/ProductCard';
 import { Link } from 'react-router-dom';
 import { BlobProducto } from '@decant/ui';
 
@@ -113,9 +112,8 @@ export default function SearchOverlay({ isOpen, onClose }) {
 
           {resultados.length > 0 && (
             <div onClick={(e) => e.stopPropagation()}>
-              
-              {/* 📱 VISTA MÓVIL: LISTA HORIZONTAL */}
-              <div className="flex flex-col md:hidden">
+              {/* LISTA UNIFICADA — mismo estilo en móvil y desktop */}
+              <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-x-8">
                 {resultados.map((producto) => {
                   const blobClass = getBlobClass(producto.subcategoria || producto.categoria);
                   const sinStock = producto.stock <= 0 && !producto.aPedido;
@@ -125,9 +123,8 @@ export default function SearchOverlay({ isOpen, onClose }) {
                       key={producto.id}
                       to={`/producto/${producto.slug || producto.id}`}
                       onClick={onClose}
-                      className="flex items-center gap-4 p-4 border-b border-light-blue/10 active:bg-extra-black transition-colors"
+                      className="flex items-center gap-4 p-4 border-b border-light-blue/10 hover:bg-brand-white/5 transition-colors"
                     >
-                      {/* Imagen + Blob Miniatura */}
                       <div className="relative w-16 h-20 flex-shrink-0 flex items-center justify-center">
                         <div className="absolute inset-0 flex items-center justify-center opacity-50">
                           <BlobProducto className={`w-full h-full ${blobClass}`} />
@@ -139,7 +136,6 @@ export default function SearchOverlay({ isOpen, onClose }) {
                         )}
                       </div>
 
-                      {/* Info de Lista */}
                       <div className="flex-1 min-w-0">
                         <p className="text-[8px] font-black uppercase tracking-[0.2em] text-light-blue mb-1 truncate">{producto.bodega}</p>
                         <h4 className="text-brand-white text-sm font-bold truncate mb-1">{producto.nombre}</h4>
@@ -154,16 +150,6 @@ export default function SearchOverlay({ isOpen, onClose }) {
                   );
                 })}
               </div>
-
-              {/* 💻 VISTA WEB/DESKTOP: GRILLA */}
-              <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-8">
-                {resultados.map((producto) => (
-                  <div key={producto.id} onClick={onClose} className="scale-95 hover:scale-100 transition-transform origin-top">
-                    <ProductCard producto={producto} />
-                  </div>
-                ))}
-              </div>
-
             </div>
           )}
           
