@@ -66,7 +66,7 @@ export default function Shop() {
     constraints.push(limit(reiniciar ? ITEMS_POR_PAGINA : ITEMS_AL_CARGAR_MAS));
 
     // Ejecutamos la consulta a través de nuestro contexto (para que se guarden en caché)
-    const q = query(collection(db, 'productos'), ...constraints);
+    const q = query(collection(db, 'catalogo_publico'), ...constraints);
     const result = await fetchProductosQuery(q);
 
     if (result.docs.length > 0) {

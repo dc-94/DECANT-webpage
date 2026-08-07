@@ -37,12 +37,8 @@ export default function Home() {
     // Solo pedimos datos si no los tenemos en el caché local
     if (productos.length === 0) {
       // Pedimos los 10 productos más recientes (Novedades)
-      const qNovedades = query(collection(db, 'productos'), orderBy('createdAt', 'desc'), limit(10));
-      fetchProductosQuery(qNovedades);
-
-      // Pedimos las suscripciones para los banners del Club
-      const qSuscripciones = query(collection(db, 'productos'), where('categoria', '==', 'Suscripciones'));
-      fetchProductosQuery(qSuscripciones);
+      const qNovedades = query(collection(db, 'catalogo_publico'), orderBy('createdAt', 'desc'), limit(10));
+      const qSuscripciones = query(collection(db, 'catalogo_publico'), where('categoria', '==', 'Suscripciones'));
     }
   }, [fetchProductosQuery, productos.length]);
 

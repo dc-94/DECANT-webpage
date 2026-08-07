@@ -1,8 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 
-// Inicializamos Admin SDK para interactuar con Firestore de forma segura
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -234,5 +234,66 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
     // Si la transacción falla (ej. por falta de stock), llega hasta aquí sin guardar nada
     logger.error("Error Crítico Checkout:", error.message);
     return res.status(500).send({ success: false, error: error.message });
+  }
+});
+
+// 3. SINCRONIZACIÓN CATÁLOGO PÚBLICO
+// Espeja productos → catalogo_publico con lista blanca de campos.
+// costo y ganancia NUNCA cruzan: protege el margen del negocio.
+const CAMPOS_PUBLICOS = [
+  'nombre', 'bodega', 'varietal', 'categoria', 'subcategoria',
+  'precioFinal', 'precioBase', 'imageUrl', 'stock', 'aPedido',
+  'slug', 'descuentoNombre', 'tipoDescuento', 'createdAt'
+];
+
+exports.syncCatalogoPublico = onDocumentWritten("productos/{prodId}", async (event) => {
+  const db = admin.firestore();
+  const destino = db.collection('catalogo_publico').doc(event.params.prodId);
+  const after = event.data.after;
+
+  // Producto borrado → borramos su espejo público
+  if (!after.exists) {
+    await destino.delete();
+    return;
+  }
+
+  const data = after.data();
+  const publico = {};
+  for (const campo of CAMPOS_PUBLICOS) {
+    if (data[campo] !== undefined) publico[campo] = data[campo];
+  }
+  await destino.set(publico, { merge: false });
+});
+
+// 4. CONSULTA PÚBLICA DE SEGUIMIENTO — devuelve estado sin PII
+exports.consultarPedido = onRequest(async (req, res) => {
+  if (handleCORS(req, res)) return;
+  try {
+    const { pedidoId } = req.body;
+    if (!pedidoId) return res.status(400).send({ success: false, error: 'Falta pedidoId' });
+
+    const db = admin.firestore();
+    const snap = await db.collection('pedidos').doc(pedidoId).get();
+
+    if (!snap.exists) {
+      return res.status(404).send({ success: false, error: 'Pedido no encontrado' });
+    }
+
+    const p = snap.data();
+    // Lista blanca: SOLO lo que el cliente necesita ver. Nada de formData/PII.
+    return res.status(200).send({
+      success: true,
+      pedido: {
+        estado: p.estado,
+        numeroOrden: pedidoId.slice(0, 5).toUpperCase(),
+        cart: p.cart,
+        totalFinal: p.totalFinal,
+        textoEnvio: p.textoEnvio,
+        createdAt: p.createdAt
+      }
+    });
+  } catch (error) {
+    logger.error("Error consultando pedido:", error.message);
+    return res.status(500).send({ success: false, error: 'Error al consultar el pedido' });
   }
 });

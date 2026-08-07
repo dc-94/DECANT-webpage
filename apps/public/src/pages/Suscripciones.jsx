@@ -26,7 +26,7 @@ export default function Suscripciones() {
     const tieneSuscripciones = productos.some(p => p.categoria?.toLowerCase().includes('suscripci'));
     
     if (!tieneSuscripciones) {
-      const qSuscripciones = query(collection(db, 'productos'), where('categoria', '==', 'Suscripciones'));
+            const qSuscripciones = query(collection(db, 'catalogo_publico'), where('categoria', '==', 'Suscripciones'));
       fetchProductosQuery(qSuscripciones);
     }
   }, [fetchProductosQuery, productos]);

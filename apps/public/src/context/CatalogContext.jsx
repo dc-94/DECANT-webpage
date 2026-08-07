@@ -60,7 +60,7 @@ export function CatalogProvider({ children }) {
   const fetchAllProductos = useCallback(async () => {
     setCargando(true);
     try {
-      const qAll = query(collection(db, 'productos'));
+      const qAll = query(collection(db, 'catalogo_publico'));
       const snapshot = await getDocs(qAll);
       const nuevosProductos = {};
 
@@ -106,7 +106,7 @@ export function CatalogProvider({ children }) {
 
     try {
       // 2. Intentar buscar por ID de documento
-      const docRef = doc(db, 'productos', slugOrId);
+      const docRef = doc(db, 'catalogo_publico', slugOrId);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const prod = { id: snap.id, ...snap.data() };
@@ -115,7 +115,7 @@ export function CatalogProvider({ children }) {
       }
 
       // 3. Buscar por slug
-      const qSlug = query(collection(db, 'productos'), where('slug', '==', slugOrId), limit(1));
+      const qSlug = query(collection(db, 'catalogo_publico'), where('slug', '==', slugOrId), limit(1));
       const slugSnap = await getDocs(qSlug);
       
       if (!slugSnap.empty) {

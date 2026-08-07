@@ -19,42 +19,49 @@ export default function TrackingPedido() {
   const [whatsappEmpresa, setWhatsappEmpresa] = useState('');
 
   useEffect(() => {
-    const fetchAjustes = async () => {
-      try {
-        const storefrontSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
-        if (storefrontSnap.exists() && storefrontSnap.data().datosEmpresa?.whatsapp) {
-          setWhatsappEmpresa(storefrontSnap.data().datosEmpresa.whatsapp);
-        }
-      } catch (err) {
-        console.error("Error buscando ajustes:", err);
+  // 1. Ajustes (WhatsApp) — permitido por reglas, se queda igual
+  const fetchAjustes = async () => {
+    try {
+      const storefrontSnap = await getDoc(doc(db, 'ajustes_storefront', 'home'));
+      if (storefrontSnap.exists() && storefrontSnap.data().datosEmpresa?.whatsapp) {
+        setWhatsappEmpresa(storefrontSnap.data().datosEmpresa.whatsapp);
       }
-    };
-    fetchAjustes();
+    } catch (err) {
+      console.error("Error buscando ajustes:", err);
+    }
+  };
+  fetchAjustes();
 
-    const docRef = doc(db, 'pedidos', id);
-    
-    const unsubscribe = onSnapshot(docRef, 
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setPedido({ id: docSnap.id, ...docSnap.data() });
-          setError(false); 
-        } else {
-          setError(true); 
-          setPedido(null);
-        }
-        setCargando(false);
-      },
-      (err) => {
-        console.error("Error en el Listener del pedido:", err);
+  // 2. Pedido — vía Cloud Function (sin PII, sin leer 'pedidos' desde el browser)
+  const cargarPedido = async () => {
+    setCargando(true);
+    try {
+      const resp = await fetch(import.meta.env.VITE_CONSULTAR_PEDIDO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: id })
+      });
+      const data = await resp.json();
+
+      if (data.success) {
+        setPedido({ id, ...data.pedido });
+        setError(false);
+      } else {
         setError(true);
-        setCargando(false);
+        setPedido(null);
       }
-    );
+    } catch (err) {
+      console.error("Error consultando el pedido:", err);
+      setError(true);
+      setPedido(null);
+    } finally {
+      setCargando(false);
+    }
+  };
+  cargarPedido();
 
-    window.scrollTo(0, 0);
-
-    return () => unsubscribe();
-  }, [id]);
+  window.scrollTo(0, 0);
+}, [id]);
 
   if (cargando) {
     return (
