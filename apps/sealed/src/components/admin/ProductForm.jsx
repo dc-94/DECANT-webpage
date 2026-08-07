@@ -78,33 +78,29 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     }
   }, [productoEnAccion]);
 
+  // Estos efectos solo DERIVAN las opciones disponibles de los dropdowns; nunca mutan
+  // formData (si no, al hidratar un producto para editar borrarían su sub/cepa guardadas).
   useEffect(() => {
     const cat = menuTree.find(c => c.nombre === formData.categoria);
-    if (cat && cat.subcategorias) {
-      setSubcategoriasDisponibles(cat.subcategorias);
-      if (!cat.subcategorias.find(s => s.nombre === formData.subcategoria)) {
-        setFormData(prev => ({ ...prev, subcategoria: "", varietal: "" }));
-      }
-    } else {
-      setSubcategoriasDisponibles([]);
-    }
+    setSubcategoriasDisponibles(cat?.subcategorias || []);
   }, [formData.categoria, menuTree]);
 
   useEffect(() => {
     const cat = menuTree.find(c => c.nombre === formData.categoria);
-    if (cat && cat.subcategorias) {
-      const sub = cat.subcategorias.find(s => s.nombre === formData.subcategoria);
-      if (sub && sub.cepas) {
-        setCepasDisponibles(sub.cepas);
-      } else {
-        setCepasDisponibles([]);
-      }
-    }
+    const sub = cat?.subcategorias?.find(s => s.nombre === formData.subcategoria);
+    setCepasDisponibles(sub?.cepas || []);
   }, [formData.subcategoria, formData.categoria, menuTree]);
 
   const handleChange = (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    const { name, type, checked, value } = e.target;
+    const val = type === 'checkbox' ? checked : value;
+    // El reseteo en cascada va acá (acción explícita del usuario), no en un efecto:
+    // cambiar la categoría invalida sub/cepa; cambiar la subcategoría invalida la cepa.
+    setFormData(prev => {
+      if (name === 'categoria') return { ...prev, categoria: val, subcategoria: '', varietal: '' };
+      if (name === 'subcategoria') return { ...prev, subcategoria: val, varietal: '' };
+      return { ...prev, [name]: val };
+    });
   };
 
   const handleAddEtiqueta = (e) => {
