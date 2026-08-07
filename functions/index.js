@@ -105,9 +105,14 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
         const cData = clientSnap.data();
         numeroCliente = cData.numeroCliente;
         // Comparamos el PIN que envía el cliente con el de la base de datos de forma segura
-        if (inputSocio && cData.numeroCliente === inputSocio) {
+        // A. BENEFICIO DE SOCIO POR EMAIL (sin PIN)
+        if (clientSnap.exists) {
+          const cData = clientSnap.data();
+          numeroCliente = cData.numeroCliente;
           if (cData.badge === 'Descorche') datosSocio = { porcentaje: 0.15, badge: 'Descorche' };
           else if (cData.badge === 'Terruño') datosSocio = { porcentaje: 0.20, badge: 'Terruño' };
+        } else {
+          numeroCliente = Math.floor(1000 + Math.random() * 9000).toString();
         }
       } else {
         numeroCliente = Math.floor(1000 + Math.random() * 9000).toString();
@@ -295,5 +300,39 @@ exports.consultarPedido = onRequest(async (req, res) => {
   } catch (error) {
     logger.error("Error consultando pedido:", error.message);
     return res.status(500).send({ success: false, error: 'Error al consultar el pedido' });
+  }
+});
+
+// 5. VERIFICAR BENEFICIO DE SOCIO — por email, sin exponer PII ni PIN
+// El checkout la usa para mostrar el descuento sin login. El descuento REAL
+// lo sigue aplicando procesarCheckoutTienda server-side; esto es solo para la UI.
+exports.verificarBeneficio = onRequest(async (req, res) => {
+  if (handleCORS(req, res)) return;
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).send({ esSocio: false });
+
+    const db = admin.firestore();
+    const emailLower = email.toLowerCase().trim();
+    const snap = await db.collection('clientes').doc(emailLower).get();
+
+    if (!snap.exists) return res.status(200).send({ esSocio: false, existe: false });
+
+    const data = snap.data();
+    let porcentaje = 0;
+    if (data.badge === 'Terruño') porcentaje = 0.20;
+    else if (data.badge === 'Descorche') porcentaje = 0.15;
+
+    // Devolvemos SOLO lo necesario para la UI. Nada de PIN, dirección, teléfono.
+    return res.status(200).send({
+      esSocio: porcentaje > 0,
+      existe: true,
+      badge: data.badge || null,
+      porcentaje,
+      nombre: data.nombre || ''   // solo para el saludo "Hola, X"
+    });
+  } catch (error) {
+    logger.error("Error verificando beneficio:", error.message);
+    return res.status(200).send({ esSocio: false });  // fail-safe: sin descuento, nunca rompe la compra
   }
 });

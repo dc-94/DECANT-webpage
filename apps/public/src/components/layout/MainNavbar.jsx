@@ -12,7 +12,7 @@ export default function MainNavbar() {
   const { menuTree, cargando, productos } = useCatalog();
   const { totalItems, isCartOpen, setIsCartOpen, justAdded } = useCart();
   
-  const { socio, logoutSocio } = useSocio();
+  const { socio } = useSocio();
   const [modalSocioOpen, setModalSocioOpen] = useState(false);
 
   const location = useLocation();
@@ -135,8 +135,7 @@ export default function MainNavbar() {
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={() => setModalSocioOpen(true)}
+              <button onClick={() => setModalSocioOpen(true)}
                 className="hidden md:block text-[10px] font-black uppercase tracking-[0.2em] hover:text-brand-orange transition-colors outline-none"
               >
                 Soy Socio
