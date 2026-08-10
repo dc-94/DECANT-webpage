@@ -10,12 +10,27 @@ if (!admin.apps.length) {
 const BASE_URL = 'https://www.decantclub.online';
 
 const ALLOWED_ORIGINS = [
-  'http://localhost:5173',              // dev público
-  'http://localhost:5174',              // dev sealed
+  'http://localhost:5173',              
+  'http://localhost:5174',              
   'https://decantclub.online',
   'https://www.decantclub.online',
   'https://sealed.decantclub.online'
 ];
+
+const verificarAppCheck = async (req, res) => {
+  const token = req.header('X-Firebase-AppCheck');
+  if (!token) {
+    logger.warn('Petición SIN token de App Check', { path: req.path, origin: req.headers.origin });
+    return true; 
+  }
+  try {
+    await admin.appCheck().verifyToken(token);
+    return false; 
+  } catch (err) {
+    logger.warn('Token de App Check INVÁLIDO', { error: err.message });
+    return true; 
+  }
+};
 
 const handleCORS = (req, res) => {
   const origin = req.headers.origin;
@@ -24,17 +39,18 @@ const handleCORS = (req, res) => {
   }
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Methods', 'POST');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Firebase-AppCheck');
     res.set('Access-Control-Max-Age', '3600');
     res.status(204).send('');
-    return true;
+    return true; 
   }
   return false;
 };
 
 // 1. FUNCIÓN DE CORREOS (Utilizada por Suscripciones y Panel de Administración)
-exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) => {
+exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) =>  {
   if (handleCORS(req, res)) return;
+    if(await verificarAppCheck(req, res)) return;   // ← agregar esta línea
   try {
     const { toEmail, toName, templateId, params } = req.body;
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -51,9 +67,9 @@ exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, asy
 });
 
 // 2. FUNCIÓN DE CHECKOUT DE TIENDA (BLINDADA CON TRANSACCIONES DE INVENTARIO)
-exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) => {
+exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) =>  {
   if (handleCORS(req, res)) return;
-
+if (await verificarAppCheck(req, res)) return;
   try {
     const { formData, cart, pago, envio, inputSocio } = req.body;
     const db = admin.firestore();
@@ -75,16 +91,14 @@ exports.procesarCheckoutTienda = onRequest({ secrets: ["BREVO_API_KEY"] }, async
         const pSnap = await transaction.get(pRef);
         
         if (!pSnap.exists) {
-          // 👉 Devolvemos un error estructurado en formato JSON
           throw new Error(JSON.stringify({ type: 'NO_STOCK', id: item.id, nombre: item.nombre }));
         }
 
         const pData = pSnap.data();
         const cantidadSolicitada = Number(item.cantidad);
 
-        // ⚠️ VALIDACIÓN DE STOCK ESTRICTA
+        // VALIDACIÓN DE STOCK ESTRICTA
         if (pData.stock < cantidadSolicitada) {
-          // 👉 Devolvemos el error estructurado incluyendo el ID del producto
           throw new Error(JSON.stringify({ type: 'NO_STOCK', id: item.id, nombre: pData.nombre }));
         }
 
@@ -255,7 +269,7 @@ exports.syncCatalogoPublico = onDocumentWritten("productos/{prodId}", async (eve
   const db = admin.firestore();
   const destino = db.collection('catalogo_publico').doc(event.params.prodId);
   const after = event.data.after;
-
+ 
   // Producto borrado → borramos su espejo público
   if (!after.exists) {
     await destino.delete();
@@ -273,6 +287,7 @@ exports.syncCatalogoPublico = onDocumentWritten("productos/{prodId}", async (eve
 // 4. CONSULTA PÚBLICA DE SEGUIMIENTO — devuelve estado sin PII
 exports.consultarPedido = onRequest(async (req, res) => {
   if (handleCORS(req, res)) return;
+if (await verificarAppCheck(req, res)) return; 
   try {
     const { pedidoId } = req.body;
     if (!pedidoId) return res.status(400).send({ success: false, error: 'Falta pedidoId' });
@@ -308,6 +323,7 @@ exports.consultarPedido = onRequest(async (req, res) => {
 // lo sigue aplicando procesarCheckoutTienda server-side; esto es solo para la UI.
 exports.verificarBeneficio = onRequest(async (req, res) => {
   if (handleCORS(req, res)) return;
+  if (await verificarAppCheck(req, res)) return;
   try {
     const { email } = req.body;
     if (!email) return res.status(400).send({ esSocio: false });

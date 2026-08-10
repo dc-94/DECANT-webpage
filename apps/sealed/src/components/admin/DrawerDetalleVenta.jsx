@@ -69,7 +69,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
         else if (campo === 'estadoLogistica' && BREVO_TEMPLATES.logistica[nuevoValor]) templateId = BREVO_TEMPLATES.logistica[nuevoValor];
 
         if (templateId) {
-          await fetch(functionUrl, {
+          await fetchConAppCheck(functionUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -105,7 +105,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
       });
 
       if (notificarCliente) {
-        await fetch(functionUrl, {
+        await fetchConAppCheck(functionUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

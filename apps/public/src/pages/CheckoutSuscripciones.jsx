@@ -3,6 +3,7 @@ import SEO from '../components/public/SEO';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '@decant/firebase-client'; 
 import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore'; 
+import { fetchConAppCheck } from '@decant/firebase-client';
 
 import { useSocio } from '../context/SocioContext';
 
@@ -186,7 +187,7 @@ export default function CheckoutSuscripcion() {
       }));
 
       try {
-        await fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
+        await fetchConAppCheck('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

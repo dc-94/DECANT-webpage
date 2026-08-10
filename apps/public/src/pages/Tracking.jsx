@@ -4,6 +4,8 @@ import { db } from '@decant/firebase-client';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'; 
 import MainNavbar from '../components/layout/MainNavbar';
 import Footer from '../components/layout/Footer';
+import { fetchConAppCheck } from '@decant/firebase-client';
+
 
 // Íconos
 const CheckIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>);
@@ -36,7 +38,7 @@ export default function TrackingPedido() {
   const cargarPedido = async () => {
     setCargando(true);
     try {
-      const resp = await fetch(import.meta.env.VITE_CONSULTAR_PEDIDO_URL, {
+      const resp = await fetchConAppCheck(import.meta.env.VITE_CONSULTAR_PEDIDO_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pedidoId: id })
