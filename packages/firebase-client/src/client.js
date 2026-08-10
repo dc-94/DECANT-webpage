@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,12 +14,19 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// App Check — certifica que las llamadas vienen de la app real.
+// El debug token permite probar en localhost (ver Paso 3).
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line no-undef
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+  isTokenAutoRefreshEnabled: true
+});
+
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-// Fuerza el selector de cuenta de Google en cada login, en vez de auto-usar la
-// sesión ya abierta en el navegador (permite elegir/agregar otra cuenta).
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 export const db = getFirestore(app);
-
-
 export default app;

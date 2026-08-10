@@ -116,15 +116,13 @@ export default function GraciasSuscripciones() {
           </div>
         </div>
 
-        {/* ==========================================
-            PIN DE SOCIO SIEMPRE VISIBLE
-            ========================================== */}
+        {/* NÚMERO DE SOCIO  */}
         <div className="bg-dark-blue/20 backdrop-blur-md border border-light-blue/20 p-8 rounded-sm w-full mb-10 shadow-xl">
-          <span className="text-[10px] uppercase tracking-[0.3em] text-brand-white/50 block mb-2 font-bold">Tu PIN de Socio Exclusivo</span>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-brand-white/50 block mb-2 font-bold">Tu Número de Socio</span>
           <p className="text-5xl font-black text-brand-orange tracking-widest">{ordenData.numeroCliente}</p>
           <p className="text-[10px] text-brand-white/60 mt-4 uppercase tracking-widest leading-relaxed">
-            Este es tu código personal de acceso.<br/>
-            Ingrésalo en la sección "Soy Socio" del menú para aplicar tus beneficios.
+            Tu beneficio se aplica <strong className="text-brand-white">automáticamente</strong> al comprar:<br/>
+            solo usá este email en el checkout. Sin códigos ni contraseñas.
           </p>
         </div>
 
