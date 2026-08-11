@@ -6,8 +6,9 @@ export const fetchConAppCheck = async (url, options = {}) => {
   try {
     const result = await getToken(appCheck, false);
     appCheckToken = result.token;
+    console.log('[AppCheck] token obtenido:', appCheckToken ? 'SÍ (' + appCheckToken.slice(0,10) + '...)' : 'VACÍO');
   } catch (err) {
-    console.error('No se pudo obtener el token de App Check:', err);
+    console.error('[AppCheck] getToken FALLÓ:', err.code, err.message);
   }
 
   return fetch(url, {
