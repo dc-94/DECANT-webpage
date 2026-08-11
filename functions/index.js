@@ -21,14 +21,14 @@ const verificarAppCheck = async (req, res) => {
   const token = req.header('X-Firebase-AppCheck');
   if (!token) {
     logger.warn('Petición SIN token de App Check', { path: req.path, origin: req.headers.origin });
-    return true; 
+    return false; 
   }
   try {
     await admin.appCheck().verifyToken(token);
     return false; 
   } catch (err) {
     logger.warn('Token de App Check INVÁLIDO', { error: err.message });
-    return true; 
+    return false; 
   }
 };
 
