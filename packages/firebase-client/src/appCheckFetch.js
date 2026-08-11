@@ -6,16 +6,11 @@ export const fetchConAppCheck = async (url, options = {}) => {
   try {
     const result = await getToken(appCheck, false);
     appCheckToken = result.token;
-    console.log('[AppCheck] token obtenido:', appCheckToken ? 'SÍ (' + appCheckToken.slice(0,10) + '...)' : 'VACÍO');
   } catch (err) {
-    console.error('[AppCheck] getToken FALLÓ:', err.code, err.message);
+    console.error('Error obteniendo token de App Check:', err);
   }
-
   return fetch(url, {
     ...options,
-    headers: {
-      ...(options.headers || {}),
-      'X-Firebase-AppCheck': appCheckToken
-    }
+    headers: { ...(options.headers || {}), 'X-Firebase-AppCheck': appCheckToken }
   });
 };
