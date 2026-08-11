@@ -20,15 +20,17 @@ const ALLOWED_ORIGINS = [
 const verificarAppCheck = async (req, res) => {
   const token = req.header('X-Firebase-AppCheck');
   if (!token) {
-    logger.warn('Petición SIN token de App Check', { path: req.path, origin: req.headers.origin });
-    return false; 
+    logger.warn('Petición SIN token de App Check', { path: req.path });
+    res.status(401).send({ success: false, error: 'Unauthorized' });
+    return true;
   }
   try {
     await admin.appCheck().verifyToken(token);
-    return false; 
+    return false;
   } catch (err) {
     logger.warn('Token de App Check INVÁLIDO', { error: err.message });
-    return false; 
+    res.status(401).send({ success: false, error: 'Unauthorized' });
+    return true;
   }
 };
 
