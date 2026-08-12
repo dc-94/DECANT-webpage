@@ -12,7 +12,7 @@ const ShieldIcon = ({ className }) => (<svg className={className} fill="none" st
 export default function CheckoutSuscripcion() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { socio } = useSocio(); 
+
   const [isProcessing, setIsProcessing] = useState(false);
   
   const [planVIP] = useState(() => location.state?.planElegido || null);
@@ -173,16 +173,12 @@ export default function CheckoutSuscripcion() {
   }
 
   const getInputClasses = (fieldName) => {
-    let base = "w-full bg-dark-blue/40 backdrop-blur-sm border-b px-4 py-4 text-sm outline-none text-brand-white transition-all focus:bg-dark-blue/60";
-    if (socio) {
-      base = "w-full bg-dark-blue/10 backdrop-blur-sm border-b px-4 py-4 text-sm outline-none text-brand-white/50 cursor-not-allowed select-none";
-      return `${base} border-light-blue/10`;
-    }
-    const status = errores[fieldName] 
-      ? "border-red-500 placeholder-brand-white/30" 
-      : "border-light-blue/20 focus:border-brand-orange placeholder-brand-white/30";
-    return `${base} ${status}`;
-  };
+  const base = "w-full bg-dark-blue/40 backdrop-blur-sm border-b px-4 py-4 text-sm outline-none text-brand-white transition-all focus:bg-dark-blue/60";
+  const status = errores[fieldName]
+    ? "border-red-500 placeholder-brand-white/30"
+    : "border-light-blue/20 focus:border-brand-orange placeholder-brand-white/30";
+  return `${base} ${status}`;
+};
 
   return (
     <div className="min-h-screen bg-extra-black text-brand-white font-poppins selection:bg-brand-orange selection:text-white flex flex-col relative overflow-hidden">
@@ -234,20 +230,20 @@ export default function CheckoutSuscripcion() {
           
           <form onSubmit={handleCheckout} className="flex flex-col gap-8">
             <div className={`bg-dark-blue/20 backdrop-blur-sm p-6 md:p-10 transition-all duration-500 rounded-sm ${activeStep === 1 ? 'border border-brand-orange/50 shadow-[0_0_30px_rgba(217,119,87,0.1)]' : 'border border-light-blue/10 opacity-60'}`}>
-              <div className="flex justify-between items-center cursor-pointer" onClick={() => !socio && setActiveStep(1)}>
+              <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveStep(1)}>
                 <h2 className="font-playfair italic text-2xl md:text-3xl text-brand-orange">1. Datos Personales y Domicilio</h2>
-                {activeStep !== 1 && !socio && <span className="text-[10px] font-black uppercase tracking-widest text-brand-white/60 hover:text-brand-orange">Editar</span>}
-                {socio && <span className="text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 px-2 py-1 rounded border border-green-400/20">Verificado</span>}
+                {activeStep !== 1 && <span className="text-[10px] font-black uppercase tracking-widest text-brand-white/60 hover:text-brand-orange">Editar</span>}
+                
               </div>
               <div className={`overflow-hidden transition-all duration-500 ${activeStep === 1 ? 'max-h-[800px] mt-8 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                   <div className="md:col-span-2 mb-2"><span className="text-[10px] uppercase tracking-widest text-brand-orange font-bold">Datos de Contacto</span></div>
                   
-                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} readOnly={!!socio} className={getInputClasses('nombre')} />
-                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange} readOnly={!!socio} className={getInputClasses('apellido')} />
+                  <input required type="text" name="nombre" placeholder="Nombre *" value={formData.nombre} onChange={handleInputChange} className={getInputClasses('nombre')} />
+                  <input required type="text" name="apellido" placeholder="Apellido *" value={formData.apellido} onChange={handleInputChange}  className={getInputClasses('apellido')} />
                   
                   <div className="md:col-span-2 relative">
-                    <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('email')} />
+                    <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} onBlur={handleBlur}className={getInputClasses('email')} />
                     {errores.email && <span className="text-red-400 text-[10px] absolute -bottom-5 left-2">{errores.email}</span>}
                     <p className="text-[10px] text-brand-orange/80 uppercase tracking-wider mt-2 leading-relaxed">
                       💡 Usá el mismo email de tus compras anteriores para mantener tu historial en un solo lugar.
@@ -255,7 +251,7 @@ export default function CheckoutSuscripcion() {
                   </div>
 
                   <div className="md:col-span-2 relative mt-2">
-                    <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555 sin espacios) *" value={formData.telefono} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('telefono')} />
+                    <input required type="tel" name="telefono" placeholder="WhatsApp (Ej: 341 555 5555 sin espacios) *" value={formData.telefono} onChange={handleInputChange} onBlur={handleBlur} className={getInputClasses('telefono')} />
                     {errores.telefono && <span className="text-red-400 text-[10px] absolute -bottom-5 left-2">{errores.telefono}</span>}
                   </div>
 
