@@ -356,13 +356,11 @@ exports.verificarBeneficio = onRequest(async (req, res) => {
 });
 
 // 6. WEBHOOK DE MERCADO PAGO — Suscripciones
-// Recibe la notificación de MP, valida la firma, consulta la suscripción real,
-// y SOLO si el pago está autorizado asigna el badge. El badge nace acá, nunca en el browser.
-// Cierra E1 (badge sin pagar) y E12 (escritura a clientes desde el navegador).
+// Valida firma, consulta la suscripción real, y solo si está autorizada asigna el badge.
+// El badge y el número nacen acá, tras pago confirmado. Cierra E1 y E12.
 const { MercadoPagoConfig, PreApproval } = require("mercadopago");
 const crypto = require("crypto");
 
-// Mapa plan MP → badge. Determinista, definido en el servidor (no confía en el browser).
 const PLAN_BADGE_MAP = {
   [process.env.MP_PLAN_DESCORCHE]: { badge: 'Descorche', porcentaje: 0.15 },
   [process.env.MP_PLAN_TERRUNO]:   { badge: 'Terruño',   porcentaje: 0.20 }
@@ -371,9 +369,8 @@ const PLAN_BADGE_MAP = {
 exports.webhookSuscripciones = onRequest(
   { secrets: ["MP_ACCESS_TOKEN", "MP_WEBHOOK_SECRET", "MP_PLAN_DESCORCHE", "MP_PLAN_TERRUNO"] },
   async (req, res) => {
-    // MP espera 200 rápido. Respondemos apenas validamos, procesamos después.
     try {
-      // ── 1. VALIDAR FIRMA (x-signature) ──────────────────────────────
+      // ── 1. VALIDAR FIRMA (x-signature) ──
       const signature = req.header('x-signature');
       const requestId = req.header('x-request-id');
       const dataId = req.query['data.id'] || req.query.id;
@@ -383,7 +380,6 @@ exports.webhookSuscripciones = onRequest(
         return res.status(401).send('Unauthorized');
       }
 
-      // El header x-signature viene como "ts=NUMERO,v1=HASH". Lo parseamos.
       const parts = {};
       signature.split(',').forEach(p => {
         const [k, v] = p.split('=');
@@ -392,7 +388,6 @@ exports.webhookSuscripciones = onRequest(
       const ts = parts.ts;
       const hash = parts.v1;
 
-      // El manifest que MP firma: id + request-id + timestamp, en ese orden exacto.
       const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
       const hmac = crypto
         .createHmac('sha256', process.env.MP_WEBHOOK_SECRET)
@@ -404,32 +399,28 @@ exports.webhookSuscripciones = onRequest(
         return res.status(401).send('Invalid signature');
       }
 
-      // ── 2. FILTRAR: solo nos importa el pago autorizado de la suscripción ──
+      // ── 2. FILTRAR eventos relevantes ──
       const tipo = req.body.type || req.query.type;
-      // Los eventos relevantes vienen como 'subscription_authorized_payment'
-      // o 'subscription_preapproval'. Ignoramos el resto respondiendo 200.
       if (tipo !== 'subscription_authorized_payment' && tipo !== 'subscription_preapproval') {
         return res.status(200).send('OK - evento ignorado');
       }
 
-      // ── 3. CONSULTAR LA SUSCRIPCIÓN REAL (no confiamos en el body) ──
+      // ── 3. CONSULTAR LA SUSCRIPCIÓN REAL ──
       const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
       const preapprovalClient = new PreApproval(client);
-
-      // El id de la suscripción viene en data.id
       const preapprovalId = dataId;
-      const suscripcion = await preapprovalClient.get({ id: preapprovalId });
-      const data = suscripcion.body || suscripcion.response || suscripcion; // solo testing
-      const status = suscripcion.status;               // 'authorized' cuando está activa/pagada
-      const payerEmail = suscripcion.payer_email;      // email con el que pagó
-      const planId = suscripcion.preapproval_plan_id;  // para mapear al badge
 
-      // Solo asignamos badge si la suscripción está autorizada
+      const suscripcion = await preapprovalClient.get({ id: preapprovalId });
+      const data = suscripcion.body || suscripcion.response || suscripcion;
+
+      const status = data.status;
+      const payerEmail = data.payer_email;
+      const planId = data.preapproval_plan_id;
+
       if (status !== 'authorized') {
         logger.info('Suscripción no autorizada aún', { preapprovalId, status });
-        return res.status(200).send('OK - suscripción no autorizada');
+        return res.status(200).send('OK - no autorizada');
       }
-
       if (!payerEmail) {
         logger.warn('Suscripción sin payer_email', { preapprovalId });
         return res.status(200).send('OK - sin email');
@@ -442,21 +433,10 @@ exports.webhookSuscripciones = onRequest(
         return res.status(200).send('OK - plan desconocido');
       }
 
-      // ── 5. ASIGNAR BADGE EN clientes (server-side, tras pago confirmado) ──
       const db = admin.firestore();
       const emailLower = payerEmail.toLowerCase().trim();
-      const clienteRef = db.collection('clientes').doc(emailLower);
 
-      await clienteRef.set({
-        email: emailLower,
-        badge: beneficio.badge,
-        suscripcionId: preapprovalId,
-        suscripcionActiva: true,
-        suscripcionDesde: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-
-      // ── 6. MARCAR EL PEDIDO PENDIENTE COMO PAGADO ──
-      // Buscamos el pedido pendiente de ese email (el más reciente sin aprobar).
+      // ── 5. LEER EL PEDIDO PENDIENTE (para sacar el numeroCliente) + marcarlo pagado ──
       const pedidosSnap = await db.collection('pedidos')
         .where('clienteEmail', '==', emailLower)
         .where('tipo', '==', 'suscripcion')
@@ -465,7 +445,9 @@ exports.webhookSuscripciones = onRequest(
         .limit(1)
         .get();
 
+      let numeroCliente = null;
       if (!pedidosSnap.empty) {
+        numeroCliente = pedidosSnap.docs[0].data().numeroCliente || null;
         await pedidosSnap.docs[0].ref.update({
           pagoAprobado: true,
           estado: 'Pagado',
@@ -473,14 +455,81 @@ exports.webhookSuscripciones = onRequest(
         });
       }
 
-      logger.info('Badge asignado por webhook', { emailLower, badge: beneficio.badge });
+      // ── 6. ASIGNAR BADGE + NÚMERO AL CLIENTE (tras pago confirmado) ──
+      await db.collection('clientes').doc(emailLower).set({
+        email: emailLower,
+        badge: beneficio.badge,
+        ...(numeroCliente && { numeroCliente }),
+        suscripcionId: preapprovalId,
+        suscripcionActiva: true,
+        suscripcionDesde: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      logger.info('Badge asignado por webhook', { emailLower, badge: beneficio.badge, numeroCliente });
       return res.status(200).send('OK');
 
     } catch (error) {
       logger.error('Error en webhook MP:', error.message);
-      // Respondemos 200 igual para que MP no reintente en loop por un error nuestro.
-      // El log queda para revisar. (Si fuera error transitorio de red, MP reintenta con 500.)
       return res.status(200).send('OK - error procesado');
     }
   }
 );
+
+// 7. CREAR PEDIDO PENDIENTE DE SUSCRIPCIÓN (server-side)
+// El browser no puede escribir 'pedidos' (reglas admin-only), así que crea el
+// pedido pendiente acá. Genera el número de socio (identificador, no credencial).
+// El badge NO se asigna acá: eso lo hace webhookSuscripciones tras el pago.
+exports.crearPedidoSuscripcion = onRequest(async (req, res) => {
+  if (handleCORS(req, res)) return;
+  if (await verificarAppCheck(req, res)) return;
+
+  try {
+    const { email, plan, subtotal, formData, envio, costoEnvioStr } = req.body;
+    if (!email || !plan) {
+      return res.status(400).send({ success: false, error: 'Faltan datos' });
+    }
+
+    const db = admin.firestore();
+    const emailLower = email.toLowerCase().trim();
+
+    // Generar número de socio único (identificador, 4 dígitos)
+    let numeroCliente = '';
+    let existe = true;
+    let intentos = 0;
+    while (existe && intentos < 20) {
+      numeroCliente = Math.floor(1000 + Math.random() * 9000).toString();
+      const q = await db.collection('clientes')
+        .where('numeroCliente', '==', numeroCliente).limit(1).get();
+      existe = !q.empty;
+      intentos++;
+    }
+
+    const pedidoInfo = {
+      clienteEmail: emailLower,
+      numeroCliente,
+      tipo: 'suscripcion',
+      plan,
+      subtotal: subtotal || 0,
+      envio: envio || '',
+      costoEnvioStr: costoEnvioStr || '',
+      totalFinal: subtotal || 0,
+      formData: formData || {},
+      estado: 'Pendiente',
+      pagoAprobado: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    const pedidoRef = await db.collection('pedidos').add(pedidoInfo);
+    const numeroOrdenCorto = pedidoRef.id.slice(0, 5).toUpperCase();
+
+    return res.status(200).send({
+      success: true,
+      pedidoId: pedidoRef.id,
+      numeroCliente,
+      ordenDisplay: numeroOrdenCorto
+    });
+  } catch (error) {
+    logger.error("Error creando pedido suscripción:", error.message);
+    return res.status(500).send({ success: false, error: 'Error interno' });
+  }
+});

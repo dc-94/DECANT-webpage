@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import SEO from '../components/public/SEO';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { db } from '@decant/firebase-client'; 
-import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore'; 
+
 import { fetchConAppCheck } from '@decant/firebase-client';
 
-import { useSocio } from '../context/SocioContext';
 
 const ChevronIcon = ({ className, isOpen }) => (<svg className={`${className} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>);
 const ArrowLeftIcon = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>);
@@ -28,31 +26,6 @@ export default function CheckoutSuscripcion() {
 
   const [errores, setErrores] = useState({ email: '', telefono: '' });
 
-  useEffect(() => {
-    if (socio && socio.email) {
-      const fetchSocioData = async () => {
-        try {
-          const docSnap = await getDoc(doc(db, 'clientes', socio.email));
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setFormData(prev => ({
-              ...prev,
-              nombre: data.nombre || prev.nombre,
-              apellido: data.apellido || prev.apellido,
-              email: data.email || socio.email,
-              telefono: data.telefono || prev.telefono,
-              direccion: data.direccionDefault || prev.direccion,
-              ciudad: data.ciudad || prev.ciudad,
-              cp: data.cp || prev.cp
-            }));
-            if (activeStep === 1) setActiveStep(2);
-          }
-        } catch (e) { console.error("Error obteniendo datos del socio", e); }
-      };
-      fetchSocioData();
-    }
-  }, [socio, activeStep]);
-
   const handleInputChange = (e) => {
     let { name, value } = e.target;
 
@@ -74,141 +47,103 @@ export default function CheckoutSuscripcion() {
   };
 
   const handleBlur = async (e) => {
-    const { name, value } = e.target;
-    
-    if (name === 'email' && value.trim() !== '') {
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailRegex.test(value)) {
-        setErrores(prev => ({ ...prev, email: 'Ingresa un formato de correo válido.' }));
-        return;
-      }
-
-      if (!socio) {
-        try {
-          const docRef = doc(db, 'clientes', value.toLowerCase().trim());
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setErrores(prev => ({ ...prev, email: 'Este correo ya está registrado. Por favor, inicia sesión en el menú superior para suscribirte.' }));
-          }
-        } catch (error) {
-          console.error("Error verificando email:", error);
-        }
-      }
+  const { name, value } = e.target;
+  if (name === 'email' && value.trim() !== '') {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(value)) {
+      setErrores(prev => ({ ...prev, email: 'Ingresa un formato de correo válido.' }));
     }
-    
-    if (name === 'telefono' && value.trim() !== '') {
-      const numeros = value.replace(/\D/g, ''); 
-      if (numeros.length < 10 || numeros.length > 15) {
-        setErrores(prev => ({ ...prev, telefono: 'Ingresa un número válido con código de área (10-15 dígitos).' }));
-      }
+  }
+  if (name === 'telefono' && value.trim() !== '') {
+    const numeros = value.replace(/\D/g, '');
+    if (numeros.length < 10 || numeros.length > 15) {
+      setErrores(prev => ({ ...prev, telefono: 'Ingresa un número válido con código de área (10-15 dígitos).' }));
     }
-  };
+  }
+};
 
   const textoEnvio = (formData.envio === 'rosario' || formData.envio === 'retiro') ? 'Gratis' : 'A convenir';
 
-  const generarPinUnico = async () => {
-    let pin = '';
-    let existe = true;
-    while (existe) {
-      pin = Math.floor(1000 + Math.random() * 9000).toString();
-      const q = query(collection(db, 'clientes'), where('numeroCliente', '==', pin));
-      const snap = await getDocs(q);
-      if (snap.empty) existe = false;
-    }
-    return pin;
-  };
 
   const handleCheckout = async (e) => {
-    e.preventDefault();
-    if (!planVIP) return; 
+  e.preventDefault();
+  if (!planVIP) return;
+  if (errores.email || errores.telefono) {
+    alert("Por favor, corrige los errores en el formulario antes de continuar.");
+    return;
+  }
+  setIsProcessing(true);
+  try {
+    const emailLower = formData.email.toLowerCase().trim();
+    const nombrePlan = planVIP.nombre || 'Club de Vinos';
+    const subtotalSuscripcion = planVIP.precioFinal;
 
-    if (errores.email || errores.telefono) {
-      alert("Por favor, corrige los errores en el formulario antes de continuar.");
-      return;
+    // Mapeo plan → ID de MP (solo para la redirección)
+    let mpPlanId = '';
+    if (nombrePlan.toLowerCase().includes('descorche')) {
+      mpPlanId = import.meta.env.VITE_MP_PLAN_DESCORCHE;
+    } else if (nombrePlan.toLowerCase().includes('terruño') || nombrePlan.toLowerCase().includes('terruno')) {
+      mpPlanId = import.meta.env.VITE_MP_PLAN_TERRUNO;
+    } else {
+      mpPlanId = import.meta.env.VITE_MP_PLAN_DESCORCHE;
     }
+    if (!mpPlanId) throw new Error("Error de configuración: Faltan los IDs de Mercado Pago.");
 
-    setIsProcessing(true);
-
-    try {
-      const emailLower = formData.email.toLowerCase().trim();
-      const numeroCliente = socio ? socio.pin : await generarPinUnico();
-      const nombrePlan = planVIP.nombre || 'Club de Vinos';
-      const badgeSocio = planVIP.subcategoria || planVIP.nombre || 'Socio VIP';
-      const subtotalSuscripcion = planVIP.precioFinal; 
-      
-      let mpPlanId = '';
-      
-      if (nombrePlan.toLowerCase().includes('descorche')) {
-        mpPlanId = import.meta.env.VITE_MP_PLAN_DESCORCHE; 
-      } else if (nombrePlan.toLowerCase().includes('terruño') || nombrePlan.toLowerCase().includes('terruno')) {
-        mpPlanId = import.meta.env.VITE_MP_PLAN_TERRUNO;
-      } else {
-        mpPlanId = import.meta.env.VITE_MP_PLAN_DESCORCHE; 
-      }
-
-      if (!mpPlanId) throw new Error("Error de configuración: Faltan los IDs de Mercado Pago en el sistema.");
-
-      await setDoc(doc(db, 'clientes', emailLower), {
-        nombre: formData.nombre, 
-        apellido: formData.apellido, 
-        email: emailLower, 
-        telefono: formData.telefono,
-        direccionDefault: formData.direccion,
-        ciudad: formData.ciudad,
-        cp: formData.cp,  
-        numeroCliente: numeroCliente, 
-        badge: badgeSocio, 
-        createdAt: serverTimestamp()
-      }, { merge: true });
-
-      const cartSuscripcion = [planVIP]; 
-
-      const pedidoInfo = {
-        clienteEmail: emailLower, 
-        numeroCliente: numeroCliente, 
-        tipo: 'suscripcion', 
+    // Crear pedido PENDIENTE vía Cloud Function (el browser no puede escribir 'pedidos':
+    // las reglas son admin-only). La función genera el número de socio. NO se escribe
+    // 'clientes' ni badge: eso lo hace el webhook de MP tras confirmar el pago (cierra E1/E12).
+    const respPedido = await fetchConAppCheck(import.meta.env.VITE_CREAR_PEDIDO_SUSCRIPCION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: emailLower,
         plan: nombrePlan,
-        cart: cartSuscripcion, 
-        subtotal: subtotalSuscripcion, 
-        envio: formData.envio, 
+        subtotal: subtotalSuscripcion,
+        envio: formData.envio,
         costoEnvioStr: textoEnvio,
-        totalFinal: subtotalSuscripcion, 
-        formData: formData, 
-        estado: 'Pendiente', 
-        pagoAprobado: false, 
-        createdAt: serverTimestamp()
-      };
+        formData: formData
+      })
+    });
+    const dataPedido = await respPedido.json();
+    if (!dataPedido.success) throw new Error('No se pudo crear el pedido de suscripción.');
 
-      const pedidoRef = await addDoc(collection(db, 'pedidos'), pedidoInfo);
-      const numeroOrdenCorto = pedidoRef.id.slice(0, 5).toUpperCase();
+    const { pedidoId, numeroCliente, ordenDisplay } = dataPedido;
 
-      localStorage.setItem('decant_sub_order', JSON.stringify({ 
-        ...pedidoInfo, id: pedidoRef.id, ordenDisplay: numeroOrdenCorto 
-      }));
+    localStorage.setItem('decant_sub_order', JSON.stringify({
+      id: pedidoId,
+      numeroCliente,
+      ordenDisplay,
+      clienteEmail: emailLower,
+      plan: nombrePlan,
+      tipo: 'suscripcion',
+      subtotal: subtotalSuscripcion,
+      estado: 'Pendiente',
+      pagoAprobado: false
+    }));
 
-      try {
-        await fetchConAppCheck('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toEmail: emailLower,
-            toName: `${formData.nombre} ${formData.apellido}`.trim(),
-            templateId: 1, 
-            params: { nombre: formData.nombre, orden: numeroOrdenCorto, plan: nombrePlan }
-          })
-        });
-      } catch (mailError) {
-        console.error("Error enviando email de recepción:", mailError);
-      }
-
-      window.location.href = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
-
-    } catch (error) {
-      console.error("Error en checkout suscripción:", error);
-      alert(error.message || "Error al procesar la orden. Intentá nuevamente.");
-      setIsProcessing(false);
+    // Email de recepción (no bloqueante)
+    try {
+      await fetchConAppCheck('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: emailLower,
+          toName: `${formData.nombre} ${formData.apellido}`.trim(),
+          templateId: 1,
+          params: { nombre: formData.nombre, orden: ordenDisplay, plan: nombrePlan }
+        })
+      });
+    } catch (mailError) {
+      console.error("Error enviando email de recepción:", mailError);
     }
-  };
+
+    window.location.href = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
+  } catch (error) {
+    console.error("Error en checkout suscripción:", error);
+    alert(error.message || "Error al procesar la orden. Intentá nuevamente.");
+    setIsProcessing(false);
+  }
+};
 
   if (!planVIP) {
     return (
@@ -314,6 +249,9 @@ export default function CheckoutSuscripcion() {
                   <div className="md:col-span-2 relative">
                     <input required type="email" name="email" placeholder="Correo Electrónico *" value={formData.email} onChange={handleInputChange} onBlur={handleBlur} readOnly={!!socio} className={getInputClasses('email')} />
                     {errores.email && <span className="text-red-400 text-[10px] absolute -bottom-5 left-2">{errores.email}</span>}
+                    <p className="text-[10px] text-brand-orange/80 uppercase tracking-wider mt-2 leading-relaxed">
+                      💡 Usá el mismo email de tus compras anteriores para mantener tu historial en un solo lugar.
+                    </p>
                   </div>
 
                   <div className="md:col-span-2 relative mt-2">
