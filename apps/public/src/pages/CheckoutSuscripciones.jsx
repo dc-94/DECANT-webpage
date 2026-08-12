@@ -99,6 +99,7 @@ export default function CheckoutSuscripcion() {
         email: emailLower,
         plan: nombrePlan,
         subtotal: subtotalSuscripcion,
+        cart: [planVIP],   
         envio: formData.envio,
         costoEnvioStr: textoEnvio,
         formData: formData
@@ -121,21 +122,7 @@ export default function CheckoutSuscripcion() {
       pagoAprobado: false
     }));
 
-    // Email de recepción (no bloqueante)
-    try {
-      await fetchConAppCheck('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toEmail: emailLower,
-          toName: `${formData.nombre} ${formData.apellido}`.trim(),
-          templateId: 1,
-          params: { nombre: formData.nombre, orden: ordenDisplay, plan: nombrePlan }
-        })
-      });
-    } catch (mailError) {
-      console.error("Error enviando email de recepción:", mailError);
-    }
+  
 
     window.location.href = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
   } catch (error) {

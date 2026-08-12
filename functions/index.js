@@ -436,7 +436,9 @@ exports.webhookSuscripciones = onRequest(
       const db = admin.firestore();
       const emailLower = payerEmail.toLowerCase().trim();
 
-      // ── 5. LEER EL PEDIDO PENDIENTE (para sacar el numeroCliente) + marcarlo pagado ──
+      // ── 5. BUSCAR PEDIDO PENDIENTE (Opción B: el más reciente sin pagar) ──
+      // Vinculamos por email del pedido; si difiere del email de MP, igual
+      // tomamos el pendiente más reciente de este payer.
       const pedidosSnap = await db.collection('pedidos')
         .where('clienteEmail', '==', emailLower)
         .where('tipo', '==', 'suscripcion')
@@ -445,32 +447,81 @@ exports.webhookSuscripciones = onRequest(
         .limit(1)
         .get();
 
-      let numeroCliente = null;
-      if (!pedidosSnap.empty) {
-        numeroCliente = pedidosSnap.docs[0].data().numeroCliente || null;
-        await pedidosSnap.docs[0].ref.update({
+      if (pedidosSnap.empty) {
+        logger.warn('Sin pedido pendiente para este email', { emailLower });
+        // Igual asignamos el badge (el pago es real), solo que sin descontar stock.
+        await db.collection('clientes').doc(emailLower).set({
+          email: emailLower, badge: beneficio.badge,
+          suscripcionId: preapprovalId, suscripcionActiva: true,
+          suscripcionDesde: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        return res.status(200).send('OK - badge sin pedido');
+      }
+
+      const pedidoDoc = pedidosSnap.docs[0];
+      const pedidoData = pedidoDoc.data();
+      const numeroCliente = pedidoData.numeroCliente || null;
+
+      // ── 6. TRANSACCIÓN: descontar stock + marcar pagado + asignar badge ──
+      // Todo junto y atómico, tras pago confirmado (cierra E1; stock solo con pago).
+      await db.runTransaction(async (transaction) => {
+        // 6a. Descontar stock de cada item de la membresía
+        const cart = pedidoData.cart || [];
+        for (const item of cart) {
+          if (!item.id) continue;
+          const prodRef = db.collection('productos').doc(item.id);
+          const prodSnap = await transaction.get(prodRef);
+          if (prodSnap.exists) {
+            const stockActual = prodSnap.data().stock || 0;
+            transaction.update(prodRef, {
+              stock: stockActual - (item.cantidad || 1)
+            });
+          }
+        }
+
+        // 6b. Marcar el pedido como pagado
+        transaction.update(pedidoDoc.ref, {
           pagoAprobado: true,
           estado: 'Pagado',
           suscripcionId: preapprovalId
         });
-      }
 
-      // ── 6. ASIGNAR BADGE + NÚMERO AL CLIENTE (tras pago confirmado) ──
-      await db.collection('clientes').doc(emailLower).set({
-        email: emailLower,
-        badge: beneficio.badge,
-        ...(numeroCliente && { numeroCliente }),
-        suscripcionId: preapprovalId,
-        suscripcionActiva: true,
-        suscripcionDesde: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+        // 6c. Asignar badge + número al cliente
+        transaction.set(db.collection('clientes').doc(emailLower), {
+          email: emailLower,
+          badge: beneficio.badge,
+          ...(numeroCliente && { numeroCliente }),
+          suscripcionId: preapprovalId,
+          suscripcionActiva: true,
+          suscripcionDesde: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
 
-      logger.info('Badge asignado por webhook', { emailLower, badge: beneficio.badge, numeroCliente });
+      // // ── 7. DISPARAR EMAIL "recibimos tu compra" (solo ahora, tras pago) ──
+      // try {
+      //   const nombre = pedidoData.formData?.nombre || '';
+      //   const apellido = pedidoData.formData?.apellido || '';
+      //   const ordenDisplay = pedidoDoc.id.slice(0, 5).toUpperCase();
+      //   await fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
+      //     method: 'POST',
+      //     headers: { 'Content-Type': 'application/json' },
+      //     body: JSON.stringify({
+      //       toEmail: emailLower,
+      //       toName: `${nombre} ${apellido}`.trim(),
+      //       templateId: 1,
+      //       params: { nombre, orden: ordenDisplay, plan: pedidoData.plan }
+      //     })
+      //   });
+      // } catch (mailErr) {
+      //   logger.error('Error enviando email de confirmación:', mailErr.message);
+      //   // No abortamos: el badge ya está asignado, el email es secundario.
+      // }
+
+      logger.info('Suscripción procesada', { emailLower, badge: beneficio.badge });
       return res.status(200).send('OK');
-
     } catch (error) {
-      logger.error('Error en webhook MP:', error.message);
-      return res.status(200).send('OK - error procesado');
+      logger.error('Error en webhookSuscripciones:', error.message);
+      return res.status(500).send('Error interno');
     }
   }
 );
@@ -484,7 +535,8 @@ exports.crearPedidoSuscripcion = onRequest(async (req, res) => {
   if (await verificarAppCheck(req, res)) return;
 
   try {
-    const { email, plan, subtotal, formData, envio, costoEnvioStr } = req.body;
+    const { email, plan, subtotal, formData, envio, costoEnvioStr, cart } = req.body;
+
     if (!email || !plan) {
       return res.status(400).send({ success: false, error: 'Faltan datos' });
     }
@@ -509,6 +561,7 @@ exports.crearPedidoSuscripcion = onRequest(async (req, res) => {
       numeroCliente,
       tipo: 'suscripcion',
       plan,
+      cart: cart || [],          // ← el producto de membresía, con su id para el stock
       subtotal: subtotal || 0,
       envio: envio || '',
       costoEnvioStr: costoEnvioStr || '',
