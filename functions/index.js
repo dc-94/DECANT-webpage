@@ -52,7 +52,7 @@ const handleCORS = (req, res) => {
 // 1. FUNCIÓN DE CORREOS (Utilizada por Suscripciones y Panel de Administración)
 exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) =>  {
   if (handleCORS(req, res)) return;
-    if(await verificarAppCheck(req, res)) return;   // ← agregar esta línea
+    if(await verificarAppCheck(req, res)) return;  
   try {
     const { toEmail, toName, templateId, params } = req.body;
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -354,3 +354,133 @@ exports.verificarBeneficio = onRequest(async (req, res) => {
     return res.status(200).send({ esSocio: false });  // fail-safe: sin descuento, nunca rompe la compra
   }
 });
+
+// 6. WEBHOOK DE MERCADO PAGO — Suscripciones
+// Recibe la notificación de MP, valida la firma, consulta la suscripción real,
+// y SOLO si el pago está autorizado asigna el badge. El badge nace acá, nunca en el browser.
+// Cierra E1 (badge sin pagar) y E12 (escritura a clientes desde el navegador).
+const { MercadoPagoConfig, PreApproval } = require("mercadopago");
+const crypto = require("crypto");
+
+// Mapa plan MP → badge. Determinista, definido en el servidor (no confía en el browser).
+const PLAN_BADGE_MAP = {
+  [process.env.MP_PLAN_DESCORCHE]: { badge: 'Descorche', porcentaje: 0.15 },
+  [process.env.MP_PLAN_TERRUNO]:   { badge: 'Terruño',   porcentaje: 0.20 }
+};
+
+exports.webhookSuscripciones = onRequest(
+  { secrets: ["MP_ACCESS_TOKEN", "MP_WEBHOOK_SECRET", "MP_PLAN_DESCORCHE", "MP_PLAN_TERRUNO"] },
+  async (req, res) => {
+    // MP espera 200 rápido. Respondemos apenas validamos, procesamos después.
+    try {
+      // ── 1. VALIDAR FIRMA (x-signature) ──────────────────────────────
+      const signature = req.header('x-signature');
+      const requestId = req.header('x-request-id');
+      const dataId = req.query['data.id'] || req.query.id;
+
+      if (!signature || !requestId) {
+        logger.warn('Webhook MP sin firma o request-id');
+        return res.status(401).send('Unauthorized');
+      }
+
+      // El header x-signature viene como "ts=NUMERO,v1=HASH". Lo parseamos.
+      const parts = {};
+      signature.split(',').forEach(p => {
+        const [k, v] = p.split('=');
+        if (k && v) parts[k.trim()] = v.trim();
+      });
+      const ts = parts.ts;
+      const hash = parts.v1;
+
+      // El manifest que MP firma: id + request-id + timestamp, en ese orden exacto.
+      const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+      const hmac = crypto
+        .createHmac('sha256', process.env.MP_WEBHOOK_SECRET)
+        .update(manifest)
+        .digest('hex');
+
+      if (hmac !== hash) {
+        logger.warn('Webhook MP con firma INVÁLIDA', { dataId });
+        return res.status(401).send('Invalid signature');
+      }
+
+      // ── 2. FILTRAR: solo nos importa el pago autorizado de la suscripción ──
+      const tipo = req.body.type || req.query.type;
+      // Los eventos relevantes vienen como 'subscription_authorized_payment'
+      // o 'subscription_preapproval'. Ignoramos el resto respondiendo 200.
+      if (tipo !== 'subscription_authorized_payment' && tipo !== 'subscription_preapproval') {
+        return res.status(200).send('OK - evento ignorado');
+      }
+
+      // ── 3. CONSULTAR LA SUSCRIPCIÓN REAL (no confiamos en el body) ──
+      const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+      const preapprovalClient = new PreApproval(client);
+
+      // El id de la suscripción viene en data.id
+      const preapprovalId = dataId;
+      const suscripcion = await preapprovalClient.get({ id: preapprovalId });
+      const data = suscripcion.body || suscripcion.response || suscripcion; // solo testing
+      const status = suscripcion.status;               // 'authorized' cuando está activa/pagada
+      const payerEmail = suscripcion.payer_email;      // email con el que pagó
+      const planId = suscripcion.preapproval_plan_id;  // para mapear al badge
+
+      // Solo asignamos badge si la suscripción está autorizada
+      if (status !== 'authorized') {
+        logger.info('Suscripción no autorizada aún', { preapprovalId, status });
+        return res.status(200).send('OK - suscripción no autorizada');
+      }
+
+      if (!payerEmail) {
+        logger.warn('Suscripción sin payer_email', { preapprovalId });
+        return res.status(200).send('OK - sin email');
+      }
+
+      // ── 4. MAPEAR PLAN → BADGE ──
+      const beneficio = PLAN_BADGE_MAP[planId];
+      if (!beneficio) {
+        logger.warn('Plan de MP no reconocido', { planId });
+        return res.status(200).send('OK - plan desconocido');
+      }
+
+      // ── 5. ASIGNAR BADGE EN clientes (server-side, tras pago confirmado) ──
+      const db = admin.firestore();
+      const emailLower = payerEmail.toLowerCase().trim();
+      const clienteRef = db.collection('clientes').doc(emailLower);
+
+      await clienteRef.set({
+        email: emailLower,
+        badge: beneficio.badge,
+        suscripcionId: preapprovalId,
+        suscripcionActiva: true,
+        suscripcionDesde: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      // ── 6. MARCAR EL PEDIDO PENDIENTE COMO PAGADO ──
+      // Buscamos el pedido pendiente de ese email (el más reciente sin aprobar).
+      const pedidosSnap = await db.collection('pedidos')
+        .where('clienteEmail', '==', emailLower)
+        .where('tipo', '==', 'suscripcion')
+        .where('pagoAprobado', '==', false)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+
+      if (!pedidosSnap.empty) {
+        await pedidosSnap.docs[0].ref.update({
+          pagoAprobado: true,
+          estado: 'Pagado',
+          suscripcionId: preapprovalId
+        });
+      }
+
+      logger.info('Badge asignado por webhook', { emailLower, badge: beneficio.badge });
+      return res.status(200).send('OK');
+
+    } catch (error) {
+      logger.error('Error en webhook MP:', error.message);
+      // Respondemos 200 igual para que MP no reintente en loop por un error nuestro.
+      // El log queda para revisar. (Si fuera error transitorio de red, MP reintenta con 500.)
+      return res.status(200).send('OK - error procesado');
+    }
+  }
+);

@@ -17,7 +17,7 @@ export default function Checkout() {
 
   const [activeStep, setActiveStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [beneficio, setBeneficio] = useState(null); // { esSocio, badge, porcentaje, nombre }
+  const [beneficio, setBeneficio] = useState(null);
   const [verificandoBeneficio, setVerificandoBeneficio] = useState(false);
   const submitLock = useRef(false);
 
@@ -26,7 +26,7 @@ export default function Checkout() {
     nombre: '', 
     apellido: '', 
     telefono: '',
-    envio: 'convenir', // 👉 Cambio: Envío a domicilio por defecto
+    envio: 'convenir',
     direccion: '', 
     ciudad: '', 
     cp: '',
@@ -62,7 +62,7 @@ const verificarBeneficioEmail = async () => {
     setBeneficio(data.esSocio ? data : null);
   } catch (e) {
     console.error('Error verificando beneficio:', e);
-    setBeneficio(null); // fail-safe: sin descuento en pantalla, la compra sigue
+    setBeneficio(null);
   } finally {
     setVerificandoBeneficio(false);
   }
