@@ -21,8 +21,10 @@ export default function TrackingPedido() {
   const [whatsappEmpresa, setWhatsappEmpresa] = useState('');
 
   // Carga el pedido vía Cloud Function. Reutilizable: la usa el efecto inicial y el botón "Actualizar".
+const [refrescando, setRefrescando] = useState(false);
+
 const cargarPedido = useCallback(async () => {
-  setCargando(true);
+  setRefrescando(true);
   try {
     const resp = await fetchConAppCheck(import.meta.env.VITE_CONSULTAR_PEDIDO_URL, {
       method: 'POST',
@@ -43,6 +45,7 @@ const cargarPedido = useCallback(async () => {
     setPedido(null);
   } finally {
     setCargando(false);
+    setRefrescando(false);
   }
 }, [id]);
 
@@ -109,13 +112,13 @@ useEffect(() => {
           </p>
           <button
             onClick={cargarPedido}
-            disabled={cargando}
+            disabled={refrescando}
             className="mt-4 inline-flex items-center gap-2 text-[10px] font-poppins font-black uppercase tracking-[0.2em] text-dark-blue border border-dark-blue/20 px-5 py-3 hover:border-brand-orange hover:text-brand-orange transition-colors disabled:opacity-40"
           >
-            <svg className={`w-3.5 h-3.5 ${cargando ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-3.5 h-3.5 ${refrescando ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            {cargando ? 'Actualizando...' : 'Actualizar estado'}
+            {refrescando ? 'Actualizando...' : 'Actualizar estado'}
           </button>
         </div>
 
