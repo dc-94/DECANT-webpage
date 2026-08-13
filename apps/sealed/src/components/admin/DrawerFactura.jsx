@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@decant/firebase-client'; 
 import { collection, onSnapshot, writeBatch, doc, increment, serverTimestamp, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '@/utils/toast';
 
 export default function DrawerFactura({ isOpen, onClose, productos }) {
   const [cargando, setCargando] = useState(false);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
 import { doc, updateDoc } from 'firebase/firestore';
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '@/utils/toast';
 import { fetchConAppCheck } from '@decant/firebase-client';
 
 // 📧 MAPA DE PLANTILLAS DE BREVO

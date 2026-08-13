@@ -4,7 +4,7 @@ import {
   collection, query, where, getDocs, writeBatch, 
   doc, increment, serverTimestamp 
 } from 'firebase/firestore';
-import { toastNumeroSocio, toastOk, toastError } from '../../utils/toast';
+import { toastNumeroSocio, toastOk, toastError } from '@/utils/toast';
 
 
 export default function DrawerNuevaVenta({ isOpen, onClose, productos = [] }) {
