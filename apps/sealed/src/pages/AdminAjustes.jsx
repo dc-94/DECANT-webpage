@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '../utils/toast';
 
 export default function AdminAjustes() {
   const [loading, setLoading] = useState(true);
