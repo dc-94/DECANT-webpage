@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDo
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '../utils/toast';
 
 export default function AdminClientes() {
   const navigate = useNavigate();

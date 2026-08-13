@@ -4,7 +4,7 @@ import { db } from '@decant/firebase-client';
 
 import { collection, query, orderBy, onSnapshot, doc, getDoc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '../utils/toast';
 
 // IMPORTACIONES DE DRAWERS
 import DrawerNuevaVenta from '../components/admin/DrawerNuevaVenta';

@@ -4,7 +4,7 @@ import { db } from '@decant/firebase-client';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import { useCatalog } from '../context/CatalogContext';
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '../utils/toast';
 
 
 

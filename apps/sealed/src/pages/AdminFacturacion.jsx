@@ -6,7 +6,7 @@ import {
   query, orderBy, getDocs 
 } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
-import { toastOk, toastError } from '../../utils/toast';
+import { toastOk, toastError } from '../utils/toast';
 
 // Drawers
 import DrawerFactura from '../components/admin/DrawerFactura';
