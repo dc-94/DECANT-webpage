@@ -49,18 +49,44 @@ const handleCORS = (req, res) => {
   return false;
 };
 
-// 1. FUNCIÓN DE CORREOS (Utilizada por Suscripciones y Panel de Administración)
-exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) =>  {
-  if (handleCORS(req, res)) return;
-    if(await verificarAppCheck(req, res)) return;  
+// Helper interno de envío de email vía Brevo. Lo usan enviarConfirmacionPedido (HTTP),
+// procesarCheckoutTienda (post-transacción) y webhookSuscripciones (server-to-server).
+// Un solo lugar con la lógica de Brevo. Devuelve true/false, nunca tira (no rompe el flujo).
+const enviarEmailBrevo = async ({ toEmail, toName, templateId, params }) => {
   try {
-    const { toEmail, toName, templateId, params } = req.body;
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
-      headers: { "accept": "application/json", "api-key": process.env.BREVO_API_KEY, "content-type": "application/json" },
-      body: JSON.stringify({ to: [{ email: toEmail, name: toName }], templateId, params })
+      headers: {
+        "accept": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        to: [{ email: toEmail, name: toName }],
+        templateId,
+        params
+      })
     });
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Error devuelto por Brevo:", errorText);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    logger.error("Error de conexión con Brevo:", e.message);
+    return false;
+  }
+};
+
+// 1. FUNCIÓN DE CORREOS (Utilizada por Suscripciones y Panel de Administración)
+exports.enviarConfirmacionPedido = onRequest({ secrets: ["BREVO_API_KEY"] }, async (req, res) => {
+  if (handleCORS(req, res)) return;
+  if (await verificarAppCheck(req, res)) return;
+  try {
+    const { toEmail, toName, templateId, params } = req.body;
+    const ok = await enviarEmailBrevo({ toEmail, toName, templateId, params });
+    if (!ok) return res.status(500).send({ success: false, error: "Error enviando email." });
     return res.status(200).send({ success: true, message: "Email enviado." });
   } catch (error) {
     logger.error("Error conectando con Brevo:", error.message);
@@ -197,37 +223,20 @@ if (await verificarAppCheck(req, res)) return;
     }); // <-- FIN DE LA TRANSACCIÓN
 
     // FASE 4: ENVIAR EMAIL DE CONFIRMACIÓN (Post-Transacción exitosa)
-    try {
-      const responseBrevo = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: { 
-          "accept": "application/json", 
-          "api-key": process.env.BREVO_API_KEY, 
-          "content-type": "application/json" 
-        },
-        body: JSON.stringify({
-          to: [{ 
-            email: emailLower, 
-            name: `${formData.nombre} ${formData.apellido}`.trim() 
-          }],
-          templateId: 8, 
-          params: { 
-            nombre: formData.nombre || 'Cliente', 
-            orden: numeroOrdenCorto, 
-            link_tracking: `${BASE_URL}/pedido/${pedidoIdReal}`
-          }
-        })
-      });
-
-      if (!responseBrevo.ok) {
-        const errorText = await responseBrevo.text();
-        logger.error("Error devuelto por Brevo al procesar Checkout:", errorText);
-      } else {
-        logger.info(`Email de confirmación enviado con éxito al pedido ${numeroOrdenCorto}`);
+    const emailEnviado = await enviarEmailBrevo({
+      toEmail: emailLower,
+      toName: `${formData.nombre} ${formData.apellido}`.trim(),
+      templateId: 8,
+      params: {
+        nombre: formData.nombre || 'Cliente',
+        orden: numeroOrdenCorto,
+        link_tracking: `${BASE_URL}/pedido/${pedidoIdReal}`
       }
-    } catch (e) { 
-      logger.error("Error de conexión al enviar email Brevo:", e.message); 
+    });
+    if (emailEnviado) {
+      logger.info(`Email de confirmación enviado con éxito al pedido ${numeroOrdenCorto}`);
     }
+
 
     // Devolvemos los datos reales al cliente para que muestre la pantalla de "Gracias"
     return res.status(200).send({
@@ -367,7 +376,7 @@ const PLAN_BADGE_MAP = {
 };
 
 exports.webhookSuscripciones = onRequest(
-  { secrets: ["MP_ACCESS_TOKEN", "MP_WEBHOOK_SECRET", "MP_PLAN_DESCORCHE", "MP_PLAN_TERRUNO"] },
+  { secrets: ["MP_ACCESS_TOKEN", "MP_WEBHOOK_SECRET", "MP_PLAN_DESCORCHE", "MP_PLAN_TERRUNO", "BREVO_API_KEY"] },
   async (req, res) => {
     try {
       // ── 1. VALIDAR FIRMA (x-signature) ──
@@ -498,24 +507,21 @@ exports.webhookSuscripciones = onRequest(
       });
 
       // // ── 7. DISPARAR EMAIL "recibimos tu compra" (solo ahora, tras pago) ──
-      // try {
-      //   const nombre = pedidoData.formData?.nombre || '';
-      //   const apellido = pedidoData.formData?.apellido || '';
-      //   const ordenDisplay = pedidoDoc.id.slice(0, 5).toUpperCase();
-      //   await fetch('https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app', {
-      //     method: 'POST',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify({
-      //       toEmail: emailLower,
-      //       toName: `${nombre} ${apellido}`.trim(),
-      //       templateId: 1,
-      //       params: { nombre, orden: ordenDisplay, plan: pedidoData.plan }
-      //     })
-      //   });
-      // } catch (mailErr) {
-      //   logger.error('Error enviando email de confirmación:', mailErr.message);
-      //   // No abortamos: el badge ya está asignado, el email es secundario.
-      // }
+      try {
+        // ── 7. EMAIL "recibimos tu suscripción" (tras pago confirmado) ──
+        const nombre = pedidoData.formData?.nombre || '';
+        const apellido = pedidoData.formData?.apellido || '';
+        const ordenDisplay = pedidoDoc.id.slice(0, 5).toUpperCase();
+        await enviarEmailBrevo({
+          toEmail: emailLower,
+          toName: `${nombre} ${apellido}`.trim(),
+          templateId: 8,   // el mismo template de "recibimos tu compra" (ajustá si tenés uno propio de suscripción)
+          params: { nombre, orden: ordenDisplay, plan: pedidoData.plan }
+        });
+      } catch (mailErr) {
+        logger.error('Error enviando email de confirmación:', mailErr.message);
+        // No abortamos: el badge ya está asignado, el email es secundario.
+      }
 
       logger.info('Suscripción procesada', { emailLower, badge: beneficio.badge });
       return res.status(200).send('OK');

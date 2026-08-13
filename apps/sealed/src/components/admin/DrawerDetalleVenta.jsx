@@ -51,7 +51,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
   const handleActualizacion = async (campo, nuevoValor) => {
     setEstadoLocal(prev => ({ ...prev, [campo]: nuevoValor }));
 
-    // 👉 BARRERA DE SEGURIDAD: Si elige "Pagado", no guardamos todavía.
+    // BARRERA DE SEGURIDAD: Si elige "Pagado", no guardamos todavía.
     // Esperamos a que llene el número de operación y presione el botón final.
     if (campo === 'estado' && nuevoValor === 'Pagado') {
       return; 
