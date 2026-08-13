@@ -48,49 +48,52 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
   const functionUrl = import.meta.env.VITE_FUNCTIONS_URL || 'https://enviarconfirmacionpedido-jztey4742a-uc.a.run.app';
   const esRetiro = !pedido.formData?.direccion; 
 
+  
   const handleActualizacion = async (campo, nuevoValor) => {
-    setEstadoLocal(prev => ({ ...prev, [campo]: nuevoValor }));
+  setEstadoLocal(prev => ({ ...prev, [campo]: nuevoValor }));
 
-    // BARRERA DE SEGURIDAD: Si elige "Pagado", no guardamos todavía.
-    // Esperamos a que llene el número de operación y presione el botón final.
-    if (campo === 'estado' && nuevoValor === 'Pagado') {
-      return; 
-    }
+  // BARRERA DE SEGURIDAD: Si elige "Pagado", no guardamos todavía.
+  if (campo === 'estado' && nuevoValor === 'Pagado') {
+    return;
+  }
 
-    setActualizando(true);
+  setActualizando(true);
+  try {
+    const pedidoRef = doc(db, 'pedidos', pedido.id);
+    await updateDoc(pedidoRef, { [campo]: nuevoValor });
 
-    try {
-      const pedidoRef = doc(db, 'pedidos', pedido.id);
-      await updateDoc(pedidoRef, {
-        [campo]: nuevoValor
-      });
+    // Toast de éxito según el campo
+    const nombreCampo = campo === 'estadoLogistica' ? 'Estado de envío' : 'Estado';
+    toastOk(`${nombreCampo} actualizado: ${nuevoValor}`);
 
-      if (notificarCliente && (campo === 'estado' || campo === 'estadoLogistica')) {
-        let templateId = null;
-        if (campo === 'estado' && BREVO_TEMPLATES.pago[nuevoValor]) templateId = BREVO_TEMPLATES.pago[nuevoValor];
-        else if (campo === 'estadoLogistica' && BREVO_TEMPLATES.logistica[nuevoValor]) templateId = BREVO_TEMPLATES.logistica[nuevoValor];
+    if (notificarCliente && (campo === 'estado' || campo === 'estadoLogistica')) {
+      let templateId = null;
+      if (campo === 'estado' && BREVO_TEMPLATES.pago[nuevoValor]) templateId = BREVO_TEMPLATES.pago[nuevoValor];
+      else if (campo === 'estadoLogistica' && BREVO_TEMPLATES.logistica[nuevoValor]) templateId = BREVO_TEMPLATES.logistica[nuevoValor];
 
-        if (templateId) {
-          await fetchConAppCheck(functionUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              toEmail: pedido.clienteEmail,
-              toName: `${pedido.formData?.nombre || ''} ${pedido.formData?.apellido || ''}`.trim() || 'Socio',
-              templateId: templateId,
-              params: { numeroOrden: pedido.id.slice(0, 5).toUpperCase(), estadoNuevo: nuevoValor, total: pedido.totalFinal }
-            })
-          });
-        }
+      if (templateId) {
+        const res = await fetchConAppCheck(functionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: pedido.clienteEmail,
+            toName: `${pedido.formData?.nombre || ''} ${pedido.formData?.apellido || ''}`.trim() || 'Socio',
+            templateId: templateId,
+            params: { numeroOrden: pedido.id.slice(0, 5).toUpperCase(), estadoNuevo: nuevoValor, total: pedido.totalFinal }
+          })
+        });
+        if (res.ok) toastOk('Cliente notificado por email.');
+        else toastError('Estado guardado, pero falló el email al cliente.');
       }
-    } catch (error) {
-      console.error("Error actualizando:", error);
-      toastError("Hubo un problema guardando el cambio.");
-      setEstadoLocal(prev => ({ ...prev, [campo]: pedido[campo] }));
-    } finally {
-      setActualizando(false);
     }
-  };
+  } catch (error) {
+    console.error("Error actualizando:", error);
+    toastError("Hubo un problema guardando el cambio.");
+    setEstadoLocal(prev => ({ ...prev, [campo]: pedido[campo] }));
+  } finally {
+    setActualizando(false);
+  }
+};
 
   // 👉 NUEVA FUNCIÓN: Confirma el pago, guarda todo el paquete y envía el mail
   const handleConfirmarPago = async () => {
