@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toastOk, toastError } from '../../utils/toast';
-
+import { fetchConAppCheck } from '@decant/firebase-client';
 
 // 📧 MAPA DE PLANTILLAS DE BREVO
 const BREVO_TEMPLATES = {
@@ -136,7 +136,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
   const handleEnviarRecordatorio = async () => {
     setEnviandoRecordatorio(true);
     try {
-      const res = await fetch(functionUrl, {
+      const res = await fetchConAppCheck(functionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
