@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
 import { 
   collection, onSnapshot, doc, setDoc, addDoc, 
-  query, orderBy, getDocs // 👉 Agregamos getDocs
+  query, orderBy, getDocs 
 } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
+import { toastOk, toastError } from '../../utils/toast';
 
 // Drawers
 import DrawerFactura from '../components/admin/DrawerFactura';
@@ -68,7 +69,7 @@ export default function AdminFacturacion() {
   };
 
   const guardarProveedor = async () => {
-    if (!provActivo.nombre.trim()) return alert("El nombre es obligatorio");
+    if (!provActivo.nombre.trim()) return toastError("El nombre es obligatorio");
     setIsSaving(true);
     try {
       if (provActivo.id) await setDoc(doc(db, 'proveedores', provActivo.id), provActivo);

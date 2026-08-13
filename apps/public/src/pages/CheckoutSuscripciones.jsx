@@ -28,23 +28,15 @@ export default function CheckoutSuscripcion() {
 
   const handleInputChange = (e) => {
     let { name, value } = e.target;
-
-    // 👉 SEGURIDAD CISO: Sanitización estricta por tipo de campo
     if (name === 'email') {
-      // Bloquea inyección CRLF en cabeceras de correo
-      value = value.replace(/[\r\n]+/g, '');
-    } else {
-      // Bloquea XSS y Server-Side Template Injection eliminando < > { } = |
-      // Permite letras, números, espacios, acentos y signos de puntuación normales
-      value = value.replace(/[<>{}|=]/g, '');
-    }
+    value = value.replace(/[\r\n]+/g, '');
+  }
 
-    setFormData({ ...formData, [name]: value });
-    
-    if (errores[name]) {
-      setErrores({ ...errores, [name]: '' });
-    }
-  };
+  setFormData({ ...formData, [name]: value });
+  if (errores[name]) {
+    setErrores({ ...errores, [name]: '' });
+  }
+};
 
   const handleBlur = async (e) => {
   const { name, value } = e.target;

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
 import { doc, updateDoc } from 'firebase/firestore';
+import { toastOk, toastError } from '../../utils/toast';
+
 
 // 📧 MAPA DE PLANTILLAS DE BREVO
 const BREVO_TEMPLATES = {
@@ -83,7 +85,7 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
       }
     } catch (error) {
       console.error("Error actualizando:", error);
-      alert("Hubo un problema guardando el cambio.");
+      toastError("Hubo un problema guardando el cambio.");
       setEstadoLocal(prev => ({ ...prev, [campo]: pedido[campo] }));
     } finally {
       setActualizando(false);
@@ -92,8 +94,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
 
   // 👉 NUEVA FUNCIÓN: Confirma el pago, guarda todo el paquete y envía el mail
   const handleConfirmarPago = async () => {
-    if (!estadoLocal.metodoPago) return alert("Por favor, selecciona un método de pago.");
-    if (!estadoLocal.numeroOperacion) return alert("Por favor, ingresa el número de operación o comprobante.");
+    if (!estadoLocal.metodoPago) { toastError("Por favor, selecciona un método de pago."); return; }
+    if (!estadoLocal.numeroOperacion) { toastError("Por favor, ingresa el número de operación o comprobante."); return; }
 
     setActualizando(true);
     try {
@@ -122,10 +124,10 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
       pedido.metodoPago = estadoLocal.metodoPago;
       pedido.numeroOperacion = estadoLocal.numeroOperacion;
 
-      alert("Pago acreditado exitosamente y cliente notificado.");
+      toastOk("Pago acreditado exitosamente y cliente notificado.");
     } catch (error) {
       console.error(error);
-      alert("Error al confirmar el pago.");
+      toastError("Error al confirmar el pago.");
     } finally {
       setActualizando(false);
     }
@@ -144,8 +146,8 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
           params: { numeroOrden: pedido.id.slice(0, 5).toUpperCase(), total: pedido.totalFinal }
         })
       });
-      if (res.ok) alert("Recordatorio de pago enviado exitosamente.");
-      else alert("Error al enviar el recordatorio.");
+      if (res.ok) toastOk("Recordatorio de pago enviado exitosamente.");
+      else toastError("Error al enviar el recordatorio.");
     } catch (error) {
       console.error("Error al enviar recordatorio:", error);
     } finally {

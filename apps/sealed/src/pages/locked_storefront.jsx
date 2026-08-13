@@ -4,10 +4,9 @@ import { db } from '@decant/firebase-client';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import { useCatalog } from '../context/CatalogContext';
+import { toastOk, toastError } from '../../utils/toast';
 
-// =========================================================
-// HELPERS (Fuera del render para estabilidad total)
-// =========================================================
+
 
 const AccordionSection = ({ title, children, isOpen, onClick }) => (
   <section className="bg-white border border-light-blue/20 rounded-sm shadow-sm overflow-hidden mb-4 font-poppins text-extra-black">
@@ -145,8 +144,8 @@ export default function LockedStorefront() {
       };
 
       await setDoc(doc(db, 'ajustes_storefront', 'home'), payload, { merge: true });
-      alert("Publicado con éxito.");
-    } catch (error) { alert("Error al guardar."); }
+      toastOk("Publicado con éxito.");
+    } catch (error) { toastError ("Error al guardar."); }
     finally { setIsSaving(false); }
   };
 

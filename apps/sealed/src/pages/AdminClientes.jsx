@@ -4,6 +4,7 @@ import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDo
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
+import { toastOk, toastError } from '../../utils/toast';
 
 export default function AdminClientes() {
   const navigate = useNavigate();
@@ -45,11 +46,11 @@ export default function AdminClientes() {
     try {
       const clienteRef = doc(db, 'clientes', clienteSeleccionado.id);
       await updateDoc(clienteRef, editData);
-      alert("Ficha actualizada.");
+      toastOk("Ficha actualizada.");
       setClienteSeleccionado(null);
     } catch (error) {
       console.error(error);
-      alert("Error al guardar.");
+      toastError("Error al guardar.");
     } finally {
       setIsSaving(false);
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@decant/firebase-client'; 
 import { collection, onSnapshot, writeBatch, doc, increment, serverTimestamp, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
+import { toastOk, toastError } from '../../utils/toast';
 
 export default function DrawerFactura({ isOpen, onClose, productos }) {
   const [cargando, setCargando] = useState(false);
@@ -56,7 +57,7 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
   const totalFactura = items.reduce((acc, item) => acc + calcularTotalLinea(item), 0);
 
   const handleConfirmar = async () => {
-    if (!cabecera.proveedor) return alert("Selecciona un proveedor");
+    if (!cabecera.proveedor) { toastError("Selecciona un proveedor"); return; }
     setCargando(true);
     try {
       const batch = writeBatch(db);
@@ -102,13 +103,13 @@ export default function DrawerFactura({ isOpen, onClose, productos }) {
       }
 
       await batch.commit();
-      alert("Factura cargada. Stock, Costos y Precios actualizados con éxito.");
+      toastOk("Factura cargada. Stock, Costos y Precios actualizados con éxito.");
       onClose();
       setItems([{ id: '', nombre: '', cantidad: 1, valor: 0, descuento: 0, busqueda: '' }]);
       setMostrarResumen(false); // Reseteamos el estado visual
     } catch (e) {
       console.error(e);
-      alert("Error al procesar la factura.");
+      toastError("Error al procesar la factura.");
     }
     setCargando(false);
   };

@@ -4,6 +4,8 @@ import {
   collection, query, where, getDocs, writeBatch, 
   doc, increment, serverTimestamp 
 } from 'firebase/firestore';
+import { toastNumeroSocio, toastOk, toastError } from '../../utils/toast';
+
 
 export default function DrawerNuevaVenta({ isOpen, onClose, productos = [] }) {
   const [cargando, setCargando] = useState(false);
@@ -87,33 +89,20 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos = [] }) {
     return pin;
   };
 
-  const buscarSocio = async () => {
-    if (!busquedaSocio) return;
-    setCargando(true);
-    const q = query(collection(db, 'clientes'), where('numeroCliente', '==', busquedaSocio));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      setClienteSeleccionado({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      setPaso(3);
-    } else {
-      alert("Socio no encontrado. Registre uno nuevo.");
-    }
-    setCargando(false);
-  };
 
   const handleRegistroNuevo = async () => {
     if (!nuevoCliente.nombre || !nuevoCliente.email) {
-      return alert("El nombre y el email son obligatorios para el seguimiento.");
+      return toastError("El nombre y el email son obligatorios para el seguimiento.");
     }
     if (nuevoCliente.tipo === 'Responsable Inscripto' && !nuevoCliente.cuit) {
-      return alert("El CUIT es obligatorio para emitir factura a Responsable Inscripto.");
+      return toastError("El CUIT es obligatorio para emitir factura a Responsable Inscripto.");
     }
     
     setCargando(true);
     const pin = await generarPinUnico();
     const dataFinal = { ...nuevoCliente, numeroCliente: pin, createdAt: new Date() };
     setClienteSeleccionado({ id: 'NUEVO', ...dataFinal });
-    alert("CLIENTE AGREGADO (PIN: " + pin + ")");
+    toastNumeroSocio(pin);
     setPaso(3);
     setCargando(false);
   };
@@ -146,9 +135,9 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos = [] }) {
 
   // --- FINALIZAR ---
   const finalizarVenta = async () => {
-    if (items.length === 0) return alert("Cargue al menos un producto.");
-    if (requiereComprobante && !nroComprobante.trim()) return alert("El número de comprobante/operación es obligatorio para este método de pago.");
-    
+    if (items.length === 0) return toastError("Cargue al menos un producto.");
+    if (requiereComprobante && !nroComprobante.trim()) return toastError("El número de comprobante/operación es obligatorio para este método de pago.");
+
     setCargando(true);
     try {
       const batch = writeBatch(db);
@@ -188,10 +177,10 @@ export default function DrawerNuevaVenta({ isOpen, onClose, productos = [] }) {
       });
 
       await batch.commit();
-      alert("Venta confirmada y stock actualizado.");
+      toastOk("Venta confirmada y stock actualizado.");
       onClose();
       resetStates();
-    } catch (e) { alert("Error al procesar venta."); }
+    } catch (e) { toastError("Error al procesar venta."); }
     setCargando(false);
   };
 

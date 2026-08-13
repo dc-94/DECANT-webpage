@@ -7,6 +7,7 @@ import { calcularPrecio } from '@decant/core';
 import { usePricingEngine } from '@decant/core/react';
 
 // Íconos
+const PLACEHOLDER_VINO = "/assets/placeholder-vino.svg";
 const CloseIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
 );
@@ -30,7 +31,7 @@ const SuggestedItemCard = ({ prod, onClose, addToCart }) => {
   return (
     <div className="group flex flex-col items-center text-center bg-[#F7F5F0] p-4 border border-dark-blue/5 hover:border-brand-orange transition-colors">
       <Link to={`/producto/${prod.id}`} onClick={onClose} className="flex flex-col items-center outline-none">
-        <img src={prod.imageUrl || "https://via.placeholder.com/150x200?text=Vino"} alt={prod.nombre} className="h-40 w-auto object-contain mb-4 group-hover:scale-105 transition-transform" />
+        <img src={prod.imageUrl || PLACEHOLDER_VINO} alt={prod.nombre} className="h-40 w-auto object-contain mb-4 group-hover:scale-105 transition-transform" />
         <h4 className="font-poppins text-[10px] font-black uppercase tracking-widest text-dark-blue group-hover:text-brand-orange transition-colors">{prod.nombre}</h4>
         <p className="font-poppins text-[9px] uppercase tracking-widest text-light-blue mt-1">{prod.varietal || prod.cepa}</p>
       </Link>
@@ -62,7 +63,7 @@ const CartItemRow = ({ item, onClose, updateQuantity, removeFromCart }) => {
   return (
     <div className="grid grid-cols-[70px_1fr_auto] md:grid-cols-[80px_1.5fr_1fr_1fr] gap-4 md:gap-6 border-b border-dark-blue/10 pb-8 items-center">
       <Link to={`/producto/${item.id}`} onClick={onClose} className="w-full aspect-[1/1.5] bg-[#F0EBE1] flex items-center justify-center group cursor-pointer">
-        <img src={item.imageUrl || "https://via.placeholder.com/150x200?text=Vino"} alt={item.nombre} className="h-[90%] w-auto object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
+        <img src={item.imageUrl || PLACEHOLDER_VINO} alt={item.nombre} className="h-[90%] w-auto object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
       </Link>
       <div className="flex flex-col gap-1 justify-center">
         <Link to={`/producto/${item.id}`} onClick={onClose} className="hover:text-brand-orange transition-colors outline-none">

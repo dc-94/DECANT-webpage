@@ -4,6 +4,7 @@ import { db } from '@decant/firebase-client';
 
 import { collection, query, orderBy, onSnapshot, doc, getDoc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
+import { toastOk, toastError } from '../../utils/toast';
 
 // IMPORTACIONES DE DRAWERS
 import DrawerNuevaVenta from '../components/admin/DrawerNuevaVenta';
@@ -96,10 +97,10 @@ export default function AdminVentas() {
 
   setIsDetalleOpen(false);
   setPedidoSeleccionado(null);
-  alert("Venta eliminada y stock restaurado correctamente.");
+  toastOk("Venta eliminada y stock restaurado correctamente.");
 } catch (error) {
   console.error("Error al eliminar la venta:", error);
-  alert("Hubo un error al intentar eliminar la venta y restaurar el stock.");
+  toastError("Hubo un error al intentar eliminar la venta y restaurar el stock.");
 }
   };
 
@@ -123,10 +124,10 @@ export default function AdminVentas() {
           }
         })
       });
-      if (res.ok) alert("Tracking reenviado.");
-      else alert("Error al enviar email.");
+      if (res.ok) toastOk("Tracking reenviado.");
+      else toastError("Error al enviar email.");
     } catch (error) {
-      alert("Error de red.");
+      toastError("Error de red.");
     }
   };
 
