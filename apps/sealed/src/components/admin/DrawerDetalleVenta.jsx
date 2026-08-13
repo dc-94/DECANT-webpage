@@ -59,39 +59,48 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
 
   setActualizando(true);
   try {
-    const pedidoRef = doc(db, 'pedidos', pedido.id);
-    await updateDoc(pedidoRef, { [campo]: nuevoValor });
+  const pedidoRef = doc(db, 'pedidos', pedido.id);
+  await updateDoc(pedidoRef, { [campo]: nuevoValor });
 
-    // Toast de éxito según el campo
-    const nombreCampo = campo === 'estadoLogistica' ? 'Estado de envío' : 'Estado';
-    toastOk(`${nombreCampo} actualizado: ${nuevoValor}`);
+  let mailEnviado = false;
+  let mailIntentado = false;
 
-    if (notificarCliente && (campo === 'estado' || campo === 'estadoLogistica')) {
-      let templateId = null;
-      if (campo === 'estado' && BREVO_TEMPLATES.pago[nuevoValor]) templateId = BREVO_TEMPLATES.pago[nuevoValor];
-      else if (campo === 'estadoLogistica' && BREVO_TEMPLATES.logistica[nuevoValor]) templateId = BREVO_TEMPLATES.logistica[nuevoValor];
+  if (notificarCliente && (campo === 'estado' || campo === 'estadoLogistica')) {
+    let templateId = null;
+    if (campo === 'estado' && BREVO_TEMPLATES.pago[nuevoValor]) templateId = BREVO_TEMPLATES.pago[nuevoValor];
+    else if (campo === 'estadoLogistica' && BREVO_TEMPLATES.logistica[nuevoValor]) templateId = BREVO_TEMPLATES.logistica[nuevoValor];
 
-      if (templateId) {
-        const res = await fetchConAppCheck(functionUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toEmail: pedido.clienteEmail,
-            toName: `${pedido.formData?.nombre || ''} ${pedido.formData?.apellido || ''}`.trim() || 'Socio',
-            templateId: templateId,
-            params: { numeroOrden: pedido.id.slice(0, 5).toUpperCase(), estadoNuevo: nuevoValor, total: pedido.totalFinal }
-          })
-        });
-        if (res.ok) toastOk('Cliente notificado por email.');
-        else toastError('Estado guardado, pero falló el email al cliente.');
-      }
+    if (templateId) {
+      mailIntentado = true;
+      const res = await fetchConAppCheck(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: pedido.clienteEmail,
+          toName: `${pedido.formData?.nombre || ''} ${pedido.formData?.apellido || ''}`.trim() || 'Socio',
+          templateId,
+          params: { numeroOrden: pedido.id.slice(0, 5).toUpperCase(), estadoNuevo: nuevoValor, total: pedido.totalFinal }
+        })
+      });
+      mailEnviado = res.ok;
     }
-  } catch (error) {
-    console.error("Error actualizando:", error);
-    toastError("Hubo un problema guardando el cambio.");
-    setEstadoLocal(prev => ({ ...prev, [campo]: pedido[campo] }));
-  } finally {
-    setActualizando(false);
+  }
+
+  // Un solo toast final, según qué se hizo
+  const nombreCampo = campo === 'estadoLogistica' ? 'Estado de envío' : 'Estado';
+  if (mailIntentado && !mailEnviado) {
+    toastError(`${nombreCampo} guardado, pero falló el email al cliente.`);
+  } else if (mailIntentado && mailEnviado) {
+    toastOk(`${nombreCampo} actualizado y cliente notificado.`);
+  } else {
+    toastOk(`${nombreCampo} actualizado.`);
+  }
+} catch (error) {
+  console.error("Error actualizando:", error);
+  toastError("Hubo un problema guardando el cambio.");
+  setEstadoLocal(prev => ({ ...prev, [campo]: pedido[campo] }));
+} finally {
+  setActualizando(false);
   }
 };
 

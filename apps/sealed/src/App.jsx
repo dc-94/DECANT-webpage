@@ -24,7 +24,7 @@ function App() {
         <AuthProvider>
           <CatalogProvider>
             <Router>
-              <Toaster position="bottom-right" reverseOrder={false} />
+              <Toaster  position="top-right"  toastOptions={{ duration: 4000 }} containerStyle={{ zIndex: 200 }} reverseOrder={false} />
               <ScrollToTop />
 
               <Suspense fallback={
