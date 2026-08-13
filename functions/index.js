@@ -316,6 +316,9 @@ if (await verificarAppCheck(req, res)) return;
       success: true,
       pedido: {
         estado: p.estado,
+        estadoLogistica: p.estadoLogistica || 'Pendiente',
+        fechaEnvio: p.fechaEnvio || null,
+        rangoHora: p.rangoHora || null,
         numeroOrden: pedidoId.slice(0, 5).toUpperCase(),
         cart: p.cart,
         totalFinal: p.totalFinal,

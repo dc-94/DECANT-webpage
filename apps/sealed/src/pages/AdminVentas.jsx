@@ -107,7 +107,7 @@ export default function AdminVentas() {
   const handleReenviarTracking = async (pedido) => {
     if (!window.confirm(`¿Reenviar email de seguimiento a ${pedido.clienteEmail}?`)) return;
     const functionUrl = import.meta.env.VITE_FUNCTIONS_URL;
-    const baseUrl = window.location.origin;
+    const baseUrl = import.meta.env.VITE_PUBLIC_URL || 'https://www.decantclub.online';
 
     try {
       const res = await fetchConAppCheck(functionUrl, {
