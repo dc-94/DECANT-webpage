@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@decant/firebase-client';
-
+import { fetchConAppCheck } from '@decant/firebase-client';
 import { collection, query, orderBy, onSnapshot, doc, getDoc, deleteDoc, getDocs, writeBatch, increment } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import { toastOk, toastError } from '@/utils/toast';
@@ -110,7 +110,7 @@ export default function AdminVentas() {
     const baseUrl = window.location.origin;
 
     try {
-      const res = await fetch(functionUrl, {
+      const res = await fetchConAppCheck(functionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
