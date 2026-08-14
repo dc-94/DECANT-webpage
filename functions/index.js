@@ -723,3 +723,83 @@ exports.cancelarMembresia = onRequest(async (req, res) => {
     return res.status(500).send({ success: false, error: 'Error interno' });
   }
 });
+
+// 10. MI CUENTA — datos del socio autenticado
+// Recibe el ID token del socio (magic link), lo verifica, y devuelve SU perfil + SUS pedidos.
+// El email sale del token verificado, nunca del body: un socio solo ve lo suyo.
+exports.miCuenta = onRequest(async (req, res) => {
+  if (handleCORS(req, res)) return;
+  if (await verificarAppCheck(req, res)) return;
+
+  try {
+    // 1. Verificar el ID token del socio
+    const authHeader = req.header('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!idToken) {
+      return res.status(401).send({ success: false, error: 'No autenticado' });
+    }
+
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (e) {
+      return res.status(401).send({ success: false, error: 'Token inválido' });
+    }
+
+    const emailLower = (decoded.email || '').toLowerCase().trim();
+    if (!emailLower) {
+      return res.status(401).send({ success: false, error: 'Sin email' });
+    }
+
+    const db = admin.firestore();
+
+    // 2. Buscar el cliente por email. Si no existe, no es socio → sin datos.
+    const clienteSnap = await db.collection('clientes').doc(emailLower).get();
+    if (!clienteSnap.exists) {
+      return res.status(200).send({ success: true, esSocio: false, perfil: null, pedidos: [] });
+    }
+    const c = clienteSnap.data();
+
+    // 3. Perfil (whitelist — solo lo que el socio debe ver de sí mismo)
+    const perfil = {
+      nombre: c.nombre || '',
+      apellido: c.apellido || '',
+      email: emailLower,
+      numeroCliente: c.numeroCliente || null,
+      badge: c.badge || null,
+      membresiaEstado: c.membresiaEstado || 'ninguna',
+      suscripcionActiva: c.suscripcionActiva || false
+    };
+
+    // 4. Sus pedidos (por email). Whitelist de campos: sin datos internos.
+    const pedidosSnap = await db.collection('pedidos')
+      .where('clienteEmail', '==', emailLower)
+      .get();
+
+    const pedidos = pedidosSnap.docs.map(doc => {
+      const p = doc.data();
+      return {
+        numeroOrden: doc.id.slice(0, 5).toUpperCase(),
+        fecha: p.createdAt || null,
+        estado: p.estado || 'Pendiente',
+        estadoLogistica: p.estadoLogistica || 'Pendiente',
+        tipo: p.tipo || 'tienda',
+        total: p.totalFinal || 0,
+        // Desglose de qué pidió (lo que querías): items con nombre, cantidad, precio
+        items: (p.cart || []).map(item => ({
+          nombre: item.nombre || item.producto || 'Producto',
+          cantidad: item.cantidad || 1,
+          precio: item.precioFinal || item.precio || 0
+        })),
+        fechaEnvio: p.fechaEnvio || null,
+        rangoHora: p.rangoHora || null
+      };
+    }).sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
+
+    return res.status(200).send({ success: true, esSocio: true, perfil, pedidos });
+
+  } catch (error) {
+    logger.error("Error en miCuenta:", error.message);
+    return res.status(500).send({ success: false, error: 'Error interno' });
+  }
+});

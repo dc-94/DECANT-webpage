@@ -61,8 +61,13 @@ export const SocioAuthProvider = ({ children }) => {
     });
   }, []);
 
+  // Dentro de SocioAuthProvider, antes del return:
+    const getToken = async () => {
+    if (!auth.currentUser) return null;
+    return await auth.currentUser.getIdToken();
+    };
   return (
-    <SocioAuthContext.Provider value={{ socio, enviarLinkAcceso, logout, loading }}>
+    <SocioAuthContext.Provider value={{ socio, enviarLinkAcceso, logout, loading, getToken }}>
       {children}
     </SocioAuthContext.Provider>
   );
