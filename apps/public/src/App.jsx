@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from '@decant/firebase-client';
+import { SocioAuthProvider } from '@decant/firebase-client';
 import { CatalogProvider } from './context/CatalogContext';
 import { CartProvider } from './context/CartContext';
 import { SocioProvider } from './context/SocioContext';
@@ -11,6 +11,7 @@ import AgeGate from './components/public/AgeGate';
 import { ScrollToTop, ErrorBoundary, lazyWithRetry } from '@decant/ui';
 
 const Home = lazyWithRetry(() => import('./pages/Home'));
+const MiCuenta = lazyWithRetry(() => import('./pages/MiCuenta'));
 const Shop = lazyWithRetry(() => import('./pages/Shop'));
 const Checkout = lazyWithRetry(() => import('./pages/Checkout'));
 const Gracias = lazyWithRetry(() => import('./pages/Gracias'));
@@ -27,7 +28,7 @@ function App() {
   return (
     <HelmetProvider>
       <ErrorBoundary>
-        <AuthProvider>
+        <SocioAuthProvider>
           <CatalogProvider>
             {/* SocioProvider debe envolver a CartProvider: CartContext consume useSocio */}
             <SocioProvider>
@@ -53,16 +54,21 @@ function App() {
                       <Route path="/ayuda" element={<Ayuda />} />
                       <Route path="/manifiesto" element={<Manifiesto />} />
                       <Route path="/shop" element={<Shop />} />
+
                       <Route path="/shop/:categoria" element={<Shop />} />
                       <Route path="/shop/:categoria/:subcategoria" element={<Shop />} />
                       <Route path="/shop/:categoria/:subcategoria/:cepa" element={<Shop />} />
                       <Route path="/producto/:id" element={<ProductDetail />} />
+
+                      <Route path="/micuenta" element={<MiCuenta />} />
+
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/gracias" element={<Gracias />} />
                       <Route path="/pedido/:id" element={<Tracking />} />
                       <Route path="/suscripciones" element={<Suscripciones />} />
                       <Route path="/checkout-suscripciones" element={<CheckoutSuscripciones />} />
                       <Route path="/gracias-suscripciones" element={<GraciasSuscripciones />} />
+
                       <Route path="/catalogo-rapido" element={<CatalogoRapido />} />
 
                       <Route path="*" element={<Navigate to="/" replace />} />
@@ -72,7 +78,7 @@ function App() {
               </CartProvider>
             </SocioProvider>
           </CatalogProvider>
-        </AuthProvider>
+        </SocioAuthProvider>
       </ErrorBoundary>
     </HelmetProvider>
   );

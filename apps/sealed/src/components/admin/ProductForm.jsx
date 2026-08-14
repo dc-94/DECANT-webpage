@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { db } from "@decant/firebase-client";
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
-import toast from 'react-hot-toast'; // 👉 IMPORTAMOS LOS TOASTS
+import toast from 'react-hot-toast'; 
 import { BlobProducto } from '@decant/ui';
+import { uploadImage, folderCatalogo } from '@/utils/uploadImage';
+
 
 const obtenerColorBlob = (categoria, subcategoria) => {
   const catStr = (categoria || "").toLowerCase();
@@ -118,39 +120,7 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     setFormData(prev => ({ ...prev, etiquetas: prev.etiquetas.filter(t => t !== tag) }));
   };
 
-  // 👉 CORRECCIÓN CRÍTICA: Ahora arroja error real si Cloudinary falla
-  const uploadImage = async (file, categoriaName, subcategoriaName, productName) => {
-    if (!file) return "";
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", "upld_decant"); // Asegúrate que este preset existe en Cloudinary
-    
-    if (categoriaName) {
-      const catLimpia = categoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (subcategoriaName) {
-        const subcatLimpia = subcategoriaName.toLowerCase().replace(/[^a-z0-9]/g, '');
-        data.append("folder", `decant/catalog/${catLimpia}/${subcatLimpia}`);
-      } else {
-        data.append("folder", `decant/catalog/${catLimpia}`);
-      }
-    } else {
-      data.append("folder", `decant/catalog/general`);
-    }
-
-    if (productName) {
-      const nombreLimpio = productName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
-      data.append("public_id", nombreLimpio);
-    }
-
-    const res = await fetch("https://api.cloudinary.com/v1_1/ds7shexal/image/upload", { method: "POST", body: data });
-    const fileRes = await res.json();
-    
-    if (fileRes.error) {
-      throw new Error(`Cloudinary: ${fileRes.error.message}`);
-    }
-    
-    return fileRes.secure_url || "";
-  };
+  
 
   const cerrarModal = () => setProductoEnAccion(null);
 
@@ -182,11 +152,15 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
     try {
       let finalImageUrl = imagenGuardadaUrl; 
       
-      // 👉 Si hay archivo nuevo, lo sube y pisa la URL anterior
+      // Si hay archivo nuevo, lo sube y pisa la URL anterior
       if (imageFile) {
         toast.loading("Subiendo imagen...", { id: toastId });
-        finalImageUrl = await uploadImage(imageFile, formData.categoria, formData.subcategoria, formData.producto); 
-      }
+       finalImageUrl = await uploadImage(imageFile, {
+        folder: folderCatalogo(formData.categoria, formData.subcategoria),
+        publicId: formData.producto,
+        throwOnError: true   
+        });
+      } 
       
       toast.loading("Sincronizando base de datos...", { id: toastId });
       const costoNum = parseFloat(formData.costo) || 0;
@@ -218,7 +192,7 @@ export default function ProductForm({ productoEnAccion, setProductoEnAccion }) {
       }
       cerrarModal(); 
     } catch (error) { 
-      // 👉 AHORA ATRAPA CUALQUIER ERROR (CLOUDINARY O FIREBASE) Y LO MUESTRA
+      //  AHORA ATRAPA CUALQUIER ERROR (CLOUDINARY O FIREBASE) Y LO MUESTRA
       toast.error("Error: " + error.message, { id: toastId, duration: 5000 }); 
     } finally { 
       setLoading(false); 

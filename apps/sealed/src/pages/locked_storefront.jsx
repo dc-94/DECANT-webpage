@@ -5,7 +5,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import { useCatalog } from '../context/CatalogContext';
 import { toastOk, toastError } from '@/utils/toast';
-
+import { uploadImage } from '@/utils/uploadImage';
 
 
 const AccordionSection = ({ title, children, isOpen, onClick }) => (
@@ -45,20 +45,7 @@ const crearSlideVacio = () => ({
   imageFile: null 
 });
 
-const uploadImage = async (file, folder = "decant/storefront/general") => {
-  if (!file) return "";
-  try {
-    const data = new FormData(); 
-    data.append("file", file); 
-    data.append("upload_preset", "upld_decant");
-    data.append("folder", folder);
-    const res = await fetch("https://api.cloudinary.com/v1_1/ds7shexal/image/upload", { method: "POST", body: data });
-    const fileRes = await res.json(); 
-    return fileRes.secure_url || "";
-  } catch (error) { 
-    return ""; 
-  }
-};
+
 
 // =========================================================
 // COMPONENTE PRINCIPAL
@@ -116,19 +103,19 @@ export default function LockedStorefront() {
     try {
       const slidesParaGuardar = await Promise.all(heroSlides.map(async (slide) => {
         let finalUrl = slide.imageUrl;
-        if (slide.imageFile) finalUrl = await uploadImage(slide.imageFile, "decant/storefront/hero") || finalUrl;
+       if (slide.imageFile) finalUrl = await uploadImage(slide.imageFile, { folder: "decant/storefront/hero" }) || finalUrl;
         return { ...slide, imageUrl: finalUrl, imageFile: null };
       }));
 
       const deliParaGuardar = await Promise.all(listaDeli.map(async (deli) => {
           let finalUrl = deli.imgProductoUrl;
-          if (deli.imgProductoFile) finalUrl = await uploadImage(deli.imgProductoFile, "decant/storefront/deli") || finalUrl;
+          if (deli.imgProductoFile) finalUrl = await uploadImage(deli.imgProductoFile, { folder: "decant/storefront/deli" }) || finalUrl;
           return { ...deli, imgProductoUrl: finalUrl, imgProductoFile: null };
       }));
 
       let finalCatUrls = { ...catImagesUrls };
       for (const cat of Object.keys(menuTree || {})) {
-        if (catImagesFiles[cat]) finalCatUrls[cat] = await uploadImage(catImagesFiles[cat], "decant/storefront/categorias");
+        if (catImagesFiles[cat]) finalCatUrls[cat] = await uploadImage(catImagesFiles[cat], { folder: "decant/storefront/categorias" });
       }
 
       const payload = {
