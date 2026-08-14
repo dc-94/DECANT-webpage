@@ -15,10 +15,11 @@ export default function AgeGate() {
     }
 
     // 2. Buscamos si ya existe el registro en el navegador
+    const VENTANA_VERIFICACION = 10 * 24 * 60 * 60 * 1000; 
     const ageVerified = localStorage.getItem('decant_age_verified');
     if (ageVerified) {
       const { timestamp } = JSON.parse(ageVerified);
-      if (new Date().getTime() - timestamp < (24 * 60 * 60 * 1000)) {
+      if (new Date().getTime() - timestamp < VENTANA_VERIFICACION) {
         return; 
       }
     }
