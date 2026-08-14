@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { db, useAuth } from '@decant/firebase-client';
+import { fetchConAppCheck, db, useAuth } from '@decant/firebase-client';
 import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
 import { toastOk, toastError } from '@/utils/toast';
 import { sanearParaUpdate, CAMPOS_EDITABLES_CLIENTE } from '@/utils/sanitize';
-import { fetchConAppCheck } from '@decant/firebase-client';
 
 
 export default function AdminClientes() {
