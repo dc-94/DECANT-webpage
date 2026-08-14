@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
 import { toastOk, toastError } from '@/utils/toast';
+import { sanearParaUpdate, CAMPOS_EDITABLES_CLIENTE } from '@/utils/sanitize';
 
 export default function AdminClientes() {
   const navigate = useNavigate();
@@ -45,16 +46,17 @@ export default function AdminClientes() {
     setIsSaving(true);
     try {
       const clienteRef = doc(db, 'clientes', clienteSeleccionado.id);
-      await updateDoc(clienteRef, editData);
+       const datosLimpios = sanearParaUpdate(editData, CAMPOS_EDITABLES_CLIENTE);
+      await updateDoc(clienteRef, datosLimpios);
       toastOk("Ficha actualizada.");
       setClienteSeleccionado(null);
-    } catch (error) {
-      console.error(error);
-      toastError("Error al guardar.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    } catch (error) { 
+        console.error(error);
+        toastError("Error al guardar.");
+      } finally {
+        setIsSaving(false);
+      }
+    };
 
   const handleEliminarCliente = async () => {
     if (window.confirm(`¿Eliminar a ${clienteSeleccionado.nombre}?`)) {
