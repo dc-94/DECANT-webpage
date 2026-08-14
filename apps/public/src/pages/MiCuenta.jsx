@@ -83,7 +83,9 @@ export default function MiCuenta() {
           <p className="text-brand-white/60 text-sm mb-8">Ingresá con tu email de socio. Te enviaremos un enlace de acceso, sin contraseñas.</p>
           {enviado ? (
             <div className="bg-brand-orange/10 border border-brand-orange/20 p-6 rounded-sm">
-              <p className="text-sm text-brand-white/90">Te enviamos un enlace de acceso a <strong>{email}</strong>. Revisá tu correo y hacé click para entrar.</p>
+              <p className="text-sm text-brand-white/90"> 
+              Si <strong>{email}</strong> corresponde a una cuenta, te enviamos un enlace de acceso. Revisá tu correo.
+                </p>
             </div>
           ) : (
             <form onSubmit={handleEnviar} className="flex flex-col gap-4">
@@ -143,13 +145,20 @@ export default function MiCuenta() {
               ) : perfil?.membresiaEstado === 'pendiente' ? (
                 <p className="text-amber-400/80 text-sm">Tu alta de socio está pendiente de pago. Revisá tu correo para completarla.</p>
               ) : (
-                <div>
-                  <p className="text-brand-white/60 text-sm mb-3">Todavía no sos socio del club.</p>
-                  <a href="/suscripciones" className="text-brand-orange text-[11px] font-black uppercase tracking-widest hover:underline">
-                    Conocer los planes →
-                  </a>
+                // No es socio y no tiene pedidos: invitación con acciones
+                <div className="text-center py-10">
+                    <p className="text-brand-white/70 text-base mb-2">Todavía no tenés compras ni membresía.</p>
+                    <p className="text-brand-white/40 text-sm mb-8">Empezá a explorar nuestra selección o sumate al club.</p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <a href="/shop" className="bg-brand-orange text-brand-white text-[11px] font-black uppercase tracking-[0.2em] px-8 py-4 hover:bg-brand-white hover:text-extra-black transition-all">
+                        Ver la tienda
+                    </a>
+                    <a href="/suscripciones" className="border border-light-blue/20 text-brand-white text-[11px] font-black uppercase tracking-[0.2em] px-8 py-4 hover:border-brand-orange hover:text-brand-orange transition-all">
+                        Conocer el club
+                    </a>
+                    </div>
                 </div>
-              )}
+                )}
             </section>
 
             {/* Pedidos */}
