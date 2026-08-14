@@ -15,4 +15,18 @@ export default defineConfig({
   }
   },
   plugins: [react()],
+  build: {
+  chunkSizeWarningLimit: 700,
+  rollupOptions: {
+    output: {
+      manualChunks(id) {
+        // id es la ruta del módulo. Agrupamos por librería.
+        if (id.includes('node_modules')) {
+          if (id.includes('firebase')) return 'firebase-vendor';
+          if (id.includes('react-dom') || id.includes('react-router') || id.includes('/react/')) return 'react-vendor';
+        }
+      },
+    },
+  },
+},
 })

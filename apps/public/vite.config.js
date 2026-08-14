@@ -11,4 +11,17 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   plugins: [react()],
+  build: {
+  chunkSizeWarningLimit: 700,
+  rollupOptions: {
+    output: {
+      manualChunks(id) {
+        if (id.includes('node_modules')) {
+          if (id.includes('firebase')) return 'firebase-vendor';
+          if (id.includes('react-dom') || id.includes('react-router') || id.includes('/react/')) return 'react-vendor';
+        }
+      },
+    },
+  },
+},
 })
