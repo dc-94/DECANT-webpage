@@ -69,13 +69,17 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
   let mailEnviado = false;
   let mailIntentado = false;
 
+ 
   if (notificarCliente && (campo === 'estado' || campo === 'estadoLogistica')) {
+  // "En Camino" NO manda mail acá: se manda al guardar la entrega (con fecha/rango).
+  if (campo === 'estadoLogistica' && nuevoValor === 'En Camino') {
+    toastOk('Estado actualizado. Cargá la fecha y rango de entrega para notificar al cliente.');
+  } else {
     let templateId = null;
     if (campo === 'estado' && BREVO_TEMPLATES.pago[nuevoValor]) templateId = BREVO_TEMPLATES.pago[nuevoValor];
     else if (campo === 'estadoLogistica' && BREVO_TEMPLATES.logistica[nuevoValor]) templateId = BREVO_TEMPLATES.logistica[nuevoValor];
 
     if (templateId) {
-      mailIntentado = true;
       const res = await fetchConAppCheck(functionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,9 +90,13 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
           params: { numeroOrden: pedido.id.slice(0, 5).toUpperCase(), estadoNuevo: nuevoValor, total: pedido.totalFinal }
         })
       });
-      mailEnviado = res.ok;
+      if (res.ok) toastOk(`Estado actualizado y cliente notificado.`);
+      else toastError('Estado guardado, pero falló el email al cliente.');
+    } else {
+      toastOk('Estado actualizado.');
     }
   }
+}
 
   // Un solo toast final, según qué se hizo
   const nombreCampo = campo === 'estadoLogistica' ? 'Estado de envío' : 'Estado';
@@ -125,7 +133,36 @@ const handleGuardarEntrega = async () => {
     });
     pedido.fechaEnvio = estadoLocal.fechaEnvio;
     pedido.rangoHora = estadoLocal.rangoHora;
-    toastOk("Datos de entrega guardados.");
+
+    // Ahora SÍ mandamos el mail de "En Camino", con fecha y rango incluidos
+    let mailOk = true;
+    if (notificarCliente) {
+      const res = await fetchConAppCheck(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: pedido.clienteEmail,
+          toName: `${pedido.formData?.nombre || ''} ${pedido.formData?.apellido || ''}`.trim() || 'Socio',
+          templateId: BREVO_TEMPLATES.logistica['En Camino'],
+          params: {
+            numeroOrden: pedido.id.slice(0, 5).toUpperCase(),
+            estadoNuevo: 'En Camino',
+            total: pedido.totalFinal,
+            fechaEnvio: estadoLocal.fechaEnvio,
+            rangoHora: estadoLocal.rangoHora
+          }
+        })
+      });
+      mailOk = res.ok;
+    }
+
+    if (!notificarCliente) {
+      toastOk("Datos de entrega guardados.");
+    } else if (mailOk) {
+      toastOk("Entrega guardada y cliente notificado.");
+    } else {
+      toastError("Entrega guardada, pero falló el email al cliente.");
+    }
   } catch (error) {
     console.error("Error guardando entrega:", error);
     toastError("No se pudo guardar la entrega.");
