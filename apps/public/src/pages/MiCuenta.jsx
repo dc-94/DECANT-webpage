@@ -111,10 +111,10 @@ export default function MiCuenta() {
   return (
     <div className="min-h-screen bg-extra-black text-brand-white">
       <MainNavbar />
-      <div className="max-w-3xl mx-auto px-6 py-16 pt-40  md:pt-48 ">
+      <div className="max-w-3xl mx-auto px-6 py-16 pt-60  md:pt-48 ">
 
         {/* Encabezado */}
-        <div className="flex items-start justify-between mb-10">
+        <div className="flex items-start px-6 py-16 justify-between mb-10">
           <div>
             <h1 className="text-3xl font-playfair italic mb-1">
               Hola{perfil?.nombre ? `, ${perfil.nombre}` : ''}
