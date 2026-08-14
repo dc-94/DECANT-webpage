@@ -60,7 +60,7 @@ function App() {
                       <Route path="/shop/:categoria/:subcategoria/:cepa" element={<Shop />} />
                       <Route path="/producto/:id" element={<ProductDetail />} />
 
-                      <Route path="/micuenta" element={<MiCuenta />} />
+                      <Route path="/mi-cuenta" element={<MiCuenta />} />
 
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/gracias" element={<Gracias />} />
