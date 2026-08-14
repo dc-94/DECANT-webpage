@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { db } from '@decant/firebase-client';
-import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, useAuth } from '@decant/firebase-client';
+import { collection, onSnapshot, query, where, getDocs, doc, updateDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from '../components/layout/AdminNavbar';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
@@ -15,7 +15,9 @@ export default function AdminClientes() {
   const [historialPedidos, setHistorialPedidos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  
+  const { user } = useAuth();
+  const [notas, setNotas] = useState([]);
+  const [nuevaNota, setNuevaNota] = useState('');
   const [ventaParaVer, setVentaParaVer] = useState(null);
   const [isDetalleVentaOpen, setIsDetalleVentaOpen] = useState(false);
 
@@ -29,6 +31,7 @@ export default function AdminClientes() {
   useEffect(() => {
     if (clienteSeleccionado) {
       setEditData({ ...clienteSeleccionado });
+      setNotas(clienteSeleccionado.notasInternas || []); 
       const fetchHistorial = async () => {
         const q = query(collection(db, 'pedidos'), where('numeroCliente', '==', clienteSeleccionado.numeroCliente));
         const snap = await getDocs(q);
@@ -55,6 +58,25 @@ export default function AdminClientes() {
         toastError("Error al guardar.");
       } finally {
         setIsSaving(false);
+      }
+    };
+
+    const handleAgregarNota = async () => {
+      if (!nuevaNota.trim()) return;
+      const nota = {
+        texto: nuevaNota.trim(),
+        autor: user?.email || 'admin',
+        fecha: new Date().toISOString()   // ISO: serverTimestamp no se permite dentro de arrays
+      };
+      try {
+        const clienteRef = doc(db, 'clientes', clienteSeleccionado.id);
+        await updateDoc(clienteRef, { notasInternas: arrayUnion(nota) });
+        setNotas(prev => [...prev, nota]);   // se ve al instante, sin re-abrir
+        setNuevaNota('');
+        toastOk('Nota agregada.');
+      } catch (error) {
+        console.error(error);
+        toastError('No se pudo agregar la nota.');
       }
     };
 
@@ -128,20 +150,32 @@ export default function AdminClientes() {
             
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               
-              <section>
+             <section>
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Contacto</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  {['nombre', 'apellido', 'email', 'telefono'].map((field) => (
-                    <div key={field} className={`flex flex-col gap-1 ${field === 'email' || field === 'telefono' ? 'col-span-2' : ''}`}>
+                  {['nombre', 'apellido', 'telefono'].map((field) => (
+                    <div key={field} className={`flex flex-col gap-1 ${field === 'telefono' ? 'col-span-2' : ''}`}>
                       <label className="text-[9px] font-black uppercase text-slate-400 ml-1">{field}</label>
-                      <input 
-                        type="text" 
-                        value={editData[field] || ''} 
-                        onChange={(e) => setEditData({...editData, [field]: e.target.value})} 
-                        className={`p-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none transition-all ${isDirty(field) ? 'border-brand-orange ring-1 ring-brand-orange/20' : 'border-slate-200'}`} 
+                      <input
+                        type="text"
+                        value={editData[field] || ''}
+                        onChange={(e) => setEditData({ ...editData, [field]: e.target.value })}
+                        className={`p-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none transition-all ${isDirty(field) ? 'border-brand-orange ring-1 ring-brand-orange/20' : 'border-slate-200'}`}
                       />
                     </div>
                   ))}
+
+                  {/* Email: identidad del socio, NO editable desde el CRM */}
+                  <div className="flex flex-col gap-1 col-span-2">
+                    <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Email (identidad del socio)</label>
+                    <input
+                      type="text"
+                      value={editData.email || ''}
+                      readOnly
+                      onClick={() => toastError('El email identifica al socio y no se edita desde el CRM. Cambiarlo requiere migrar el registro.')}
+                      className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
+                    />
+                  </div>
                 </div>
               </section>
 
@@ -167,7 +201,7 @@ export default function AdminClientes() {
                 </div>
               </section>
 
-              {/* 👉 HISTORIAL INTERACTIVO ACTUALIZADO CON COMPROBANTES DE PAGO */}
+              {/*  HISTORIAL INTERACTIVO ACTUALIZADO CON COMPROBANTES DE PAGO */}
               <section>
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Historial de Pedidos</h4>
                 <div className="space-y-3">
@@ -209,6 +243,42 @@ export default function AdminClientes() {
                   {historialPedidos.length === 0 && (
                     <p className="text-xs text-slate-400 italic text-center py-4">No hay compras registradas.</p>
                   )}
+                </div>
+              </section>
+
+              <section>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Notas internas</h4>
+
+                {/* Input + botón agregar */}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={nuevaNota}
+                    onChange={(e) => setNuevaNota(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAgregarNota(); }}
+                    placeholder="Agregar nota, queja o registro de soporte..."
+                    className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand-orange"
+                  />
+                  <button
+                    onClick={handleAgregarNota}
+                    className="px-4 bg-slate-900 text-white rounded-xl text-lg font-black hover:bg-brand-orange transition-colors shrink-0"
+                    title="Agregar nota"
+                  >+</button>
+                </div>
+
+                {/* Historial de notas (más reciente arriba) */}
+                <div className="flex flex-col gap-2">
+                  {notas.length === 0 && (
+                    <p className="text-[11px] text-slate-300 font-bold italic">Sin notas todavía.</p>
+                  )}
+                  {[...notas].reverse().map((nota, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-700">{nota.texto}</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1.5">
+                        {nota.autor} · {new Date(nota.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </section>
             </div>
