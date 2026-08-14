@@ -5,7 +5,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { toastOk, toastError } from '@/utils/toast';
 import { fetchConAppCheck } from '@decant/firebase-client';
 
-// 📧 MAPA DE PLANTILLAS DE BREVO
+// MAPA DE PLANTILLAS DE BREVO
 const BREVO_TEMPLATES = {
   pago: {
     'Pagado': 2,      
@@ -29,7 +29,9 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
     estado: '',
     estadoLogistica: '',
     metodoPago: '',
-    numeroOperacion: '' // 👉 Agregamos el número de operación al estado
+    numeroOperacion: '' ,
+    fechaEnvio: '',      
+    rangoHora: ''
   });
 
   useEffect(() => {
@@ -38,7 +40,9 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
         estado: pedido.estado || 'Pendiente',
         estadoLogistica: pedido.estadoLogistica || 'Pendiente',
         metodoPago: pedido.metodoPago || '',
-        numeroOperacion: pedido.numeroOperacion || ''
+        numeroOperacion: pedido.numeroOperacion || '',
+        fechaEnvio: pedido.fechaEnvio || '',
+        rangoHora: pedido.rangoHora || ''  
       });
     }
   }, [pedido]);
@@ -104,7 +108,33 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
   }
 };
 
-  // 👉 NUEVA FUNCIÓN: Confirma el pago, guarda todo el paquete y envía el mail
+  // Guarda la fecha y rango de entrega (cuando el pedido está "En Camino")
+  // Fecha mínima = hoy (no permite fechas pasadas)
+const hoyISO = new Date().toISOString().split('T')[0];
+const handleGuardarEntrega = async () => {
+  if (!estadoLocal.fechaEnvio || !estadoLocal.rangoHora) {
+    toastError("Completá la fecha y el rango horario de entrega.");
+    return;
+  }
+  setActualizando(true);
+  try {
+    const pedidoRef = doc(db, 'pedidos', pedido.id);
+    await updateDoc(pedidoRef, {
+      fechaEnvio: estadoLocal.fechaEnvio,
+      rangoHora: estadoLocal.rangoHora
+    });
+    pedido.fechaEnvio = estadoLocal.fechaEnvio;
+    pedido.rangoHora = estadoLocal.rangoHora;
+    toastOk("Datos de entrega guardados.");
+  } catch (error) {
+    console.error("Error guardando entrega:", error);
+    toastError("No se pudo guardar la entrega.");
+  } finally {
+    setActualizando(false);
+  }
+};
+
+
   const handleConfirmarPago = async () => {
     if (!estadoLocal.metodoPago) { toastError("Por favor, selecciona un método de pago."); return; }
     if (!estadoLocal.numeroOperacion) { toastError("Por favor, ingresa el número de operación o comprobante."); return; }
@@ -340,6 +370,45 @@ export default function DrawerDetalleVenta({ isOpen, onClose, pedido, onEliminar
                   <option value="Entregado">Entregado</option>
                 </select>
               </div>
+              {estadoLocal.estadoLogistica === 'En Camino' && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-col gap-2 animate-in fade-in duration-300">
+                <span className="text-[8px] font-black uppercase text-amber-700 tracking-widest">Coordinar entrega</span>
+
+                <div>
+                  <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block">Fecha de entrega</label>
+                  <input
+                    type="date"
+                    min={hoyISO}
+                    value={estadoLocal.fechaEnvio}
+                    onChange={(e) => setEstadoLocal(prev => ({ ...prev, fechaEnvio: e.target.value }))}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-[11px] font-bold outline-none cursor-pointer bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block">Rango horario</label>
+                  <select
+                    value={estadoLocal.rangoHora}
+                    onChange={(e) => setEstadoLocal(prev => ({ ...prev, rangoHora: e.target.value }))}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-[11px] font-bold outline-none cursor-pointer bg-white"
+                  >
+                    <option value="">Elegí un rango</option>
+                    <option value="9:00 y 12:00 hs">9:00 a 12:00 hs</option>
+                    <option value="12:00 y 15:00 hs">12:00 a 15:00 hs</option>
+                    <option value="15:00 y 18:00 hs">15:00 a 18:00 hs</option>
+                    <option value="18:00 y 21:00 hs">18:00 a 21:00 hs</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleGuardarEntrega}
+                  disabled={actualizando}
+                  className="w-full py-2 bg-amber-500 text-white rounded-md text-[9px] font-black uppercase tracking-widest hover:bg-amber-600 transition-colors disabled:opacity-50"
+                >
+                  {actualizando ? 'Guardando...' : 'Guardar entrega'}
+                </button>
+              </div>
+            )}
             </div>
           </section>
 
