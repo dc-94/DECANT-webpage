@@ -261,7 +261,7 @@ const handleGuardarEntrega = async () => {
               <span className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${pedido.tipo === 'OFFLINE' ? 'bg-slate-200 text-slate-600' : 'bg-orange-50 text-brand-orange border-brand-orange/20'}`}>
                 {pedido.tipo || 'WEB'}
               </span>
-              <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">ORDEN #{pedido.id.slice(0, 5).toUpperCase()}</h2>
+              <h2 className="text-xl font-poppins !font-black uppercase tracking-tight text-slate-900">ORDEN #{pedido.id.slice(0, 5).toUpperCase()}</h2>
               <span className="text-[10px] font-bold text-slate-400">
                 {new Date(pedido.createdAt?.seconds * 1000).toLocaleDateString('es-AR') || ''}
               </span>

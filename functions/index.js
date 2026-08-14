@@ -502,6 +502,7 @@ exports.webhookSuscripciones = onRequest(
         transaction.set(db.collection('clientes').doc(emailLower), {
           email: emailLower,
           badge: beneficio.badge,
+          membresiaEstado: 'activa',   
           ...(numeroCliente && { numeroCliente }),
           suscripcionId: preapprovalId,
           suscripcionActiva: true,
@@ -592,6 +593,133 @@ exports.crearPedidoSuscripcion = onRequest(async (req, res) => {
     });
   } catch (error) {
     logger.error("Error creando pedido suscripción:", error.message);
+    return res.status(500).send({ success: false, error: 'Error interno' });
+  }
+});
+
+// 8. ALTA DE MEMBRESÍA MANUAL (desde el CRM)
+// Soporte inicia el alta de un socio: crea el pedido pendiente, marca al cliente
+// como 'pendiente', y le manda el mail 9 con el link de MP para completar el pago.
+// El badge se activa SOLO cuando el cliente paga (webhookSuscripciones). Coherente con E1.
+exports.altaMembresiaManual = onRequest(
+  { secrets: ["MP_PLAN_DESCORCHE", "MP_PLAN_TERRUNO", "BREVO_API_KEY"] },
+  async (req, res) => {
+    if (handleCORS(req, res)) return;
+    if (await verificarAppCheck(req, res)) return;
+
+    try {
+      const { email, plan } = req.body;  // plan: 'Descorche' | 'Terruño'
+      if (!email || !plan) {
+        return res.status(400).send({ success: false, error: 'Faltan datos' });
+      }
+
+      const db = admin.firestore();
+      const emailLower = email.toLowerCase().trim();
+
+      // Mapear plan → ID de MP (para el link de pago)
+      let mpPlanId = '';
+      const planLower = plan.toLowerCase();
+      if (planLower.includes('descorche')) mpPlanId = process.env.MP_PLAN_DESCORCHE;
+      else if (planLower.includes('terruño') || planLower.includes('terruno')) mpPlanId = process.env.MP_PLAN_TERRUNO;
+      if (!mpPlanId) {
+        return res.status(400).send({ success: false, error: 'Plan no reconocido' });
+      }
+
+      // Verificar que el cliente exista (el alta manual es sobre un cliente ya en la base)
+      const clienteRef = db.collection('clientes').doc(emailLower);
+      const clienteSnap = await clienteRef.get();
+      if (!clienteSnap.exists) {
+        return res.status(404).send({ success: false, error: 'Cliente no encontrado' });
+      }
+      const clienteData = clienteSnap.data();
+
+      // Reutilizar el numeroCliente existente, o generar uno si no tiene
+      let numeroCliente = clienteData.numeroCliente || null;
+      if (!numeroCliente) {
+        let existe = true, intentos = 0;
+        while (existe && intentos < 20) {
+          numeroCliente = Math.floor(1000 + Math.random() * 9000).toString();
+          const q = await db.collection('clientes').where('numeroCliente', '==', numeroCliente).limit(1).get();
+          existe = !q.empty;
+          intentos++;
+        }
+      }
+
+      // Crear pedido pendiente (igual que el flujo normal, para que el webhook lo vincule)
+      const pedidoRef = await db.collection('pedidos').add({
+        clienteEmail: emailLower,
+        numeroCliente,
+        tipo: 'suscripcion',
+        plan,
+        cart: [],
+        subtotal: 0,
+        totalFinal: 0,
+        formData: {
+          nombre: clienteData.nombre || '',
+          apellido: clienteData.apellido || ''
+        },
+        estado: 'Pendiente',
+        pagoAprobado: false,
+        origenAlta: 'manual',   // marca que lo inició soporte, no el cliente
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      const ordenDisplay = pedidoRef.id.slice(0, 5).toUpperCase();
+
+      // Marcar al cliente como 'pendiente' (el badge NO se toca; se activa al pagar)
+      await clienteRef.set({
+        membresiaEstado: 'pendiente',
+        ...(numeroCliente && { numeroCliente })
+      }, { merge: true });
+
+      // Mail 9: "completá tu suscripción"
+      const linkPago = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${mpPlanId}`;
+      await enviarEmailBrevo({
+        toEmail: emailLower,
+        toName: `${clienteData.nombre || ''} ${clienteData.apellido || ''}`.trim() || 'Socio',
+        templateId: 9,
+        params: {
+          nombre: clienteData.nombre || 'Socio',
+          plan,
+          linkPago,
+          numeroOrden: ordenDisplay
+        }
+      });
+
+      return res.status(200).send({ success: true, numeroCliente, ordenDisplay });
+    } catch (error) {
+      logger.error("Error en alta manual de membresía:", error.message);
+      return res.status(500).send({ success: false, error: 'Error interno' });
+    }
+  }
+);
+
+// 9. CANCELAR MEMBRESÍA (desde el CRM)
+// Quita el badge y marca la membresía como cancelada. La baja en Mercado Pago
+// se hace a mano en el panel de MP (decisión acordada).
+exports.cancelarMembresia = onRequest(async (req, res) => {
+  if (handleCORS(req, res)) return;
+  if (await verificarAppCheck(req, res)) return;
+
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).send({ success: false, error: 'Falta el email' });
+
+    const db = admin.firestore();
+    const emailLower = email.toLowerCase().trim();
+    const clienteRef = db.collection('clientes').doc(emailLower);
+    const snap = await clienteRef.get();
+    if (!snap.exists) return res.status(404).send({ success: false, error: 'Cliente no encontrado' });
+
+    await clienteRef.set({
+      badge: null,
+      suscripcionActiva: false,
+      membresiaEstado: 'ninguna',
+      suscripcionId: null
+    }, { merge: true });
+
+    return res.status(200).send({ success: true });
+  } catch (error) {
+    logger.error("Error cancelando membresía:", error.message);
     return res.status(500).send({ success: false, error: 'Error interno' });
   }
 });

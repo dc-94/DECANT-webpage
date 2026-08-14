@@ -6,6 +6,8 @@ import AdminNavbar from '../components/layout/AdminNavbar';
 import DrawerDetalleVenta from '../components/admin/DrawerDetalleVenta'; 
 import { toastOk, toastError } from '@/utils/toast';
 import { sanearParaUpdate, CAMPOS_EDITABLES_CLIENTE } from '@/utils/sanitize';
+import { fetchConAppCheck } from '@decant/firebase-client';
+
 
 export default function AdminClientes() {
   const navigate = useNavigate();
@@ -20,6 +22,8 @@ export default function AdminClientes() {
   const [nuevaNota, setNuevaNota] = useState('');
   const [ventaParaVer, setVentaParaVer] = useState(null);
   const [isDetalleVentaOpen, setIsDetalleVentaOpen] = useState(false);
+const [procesandoMembresia, setProcesandoMembresia] = useState(false);
+
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'clientes'), (snapshot) => {
@@ -79,6 +83,56 @@ export default function AdminClientes() {
         toastError('No se pudo agregar la nota.');
       }
     };
+
+
+    const handleAltaMembresia = async (plan) => {
+      if (!window.confirm(`¿Iniciar alta de membresía "${plan}" para ${clienteSeleccionado.nombre}? Se le enviará un email para completar el pago.`)) return;
+      setProcesandoMembresia(true);
+      try {
+        const res = await fetchConAppCheck(import.meta.env.VITE_ALTA_MEMBRESIA_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: clienteSeleccionado.id, plan })
+        });
+        const data = await res.json();
+        if (data.success) {
+          toastOk('Alta iniciada. Email enviado al cliente.');
+          setEditData(prev => ({ ...prev, membresiaEstado: 'pendiente' }));
+        } else {
+          toastError(data.error || 'No se pudo iniciar el alta.');
+        }
+      } catch (e) {
+        console.error(e);
+        toastError('Error al iniciar el alta.');
+      } finally {
+        setProcesandoMembresia(false);
+      }
+    };
+
+    const handleCancelarMembresia = async () => {
+      if (!window.confirm(`¿Cancelar la membresía de ${clienteSeleccionado.nombre}? Recordá dar la baja también en el panel de Mercado Pago.`)) return;
+      setProcesandoMembresia(true);
+      try {
+        const res = await fetchConAppCheck(import.meta.env.VITE_CANCELAR_MEMBRESIA_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: clienteSeleccionado.id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          toastOk('Membresía cancelada.');
+          setEditData(prev => ({ ...prev, badge: null, membresiaEstado: 'ninguna' }));
+        } else {
+          toastError(data.error || 'No se pudo cancelar.');
+        }
+      } catch (e) {
+        console.error(e);
+        toastError('Error al cancelar.');
+      } finally {
+        setProcesandoMembresia(false);
+      }
+    };
+
 
   const handleEliminarCliente = async () => {
     if (window.confirm(`¿Eliminar a ${clienteSeleccionado.nombre}?`)) {
@@ -149,7 +203,59 @@ export default function AdminClientes() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
-              
+              <section>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Membresía</h4>
+
+                  {/* Estado actual */}
+                  <div className="mb-4">
+                    {editData.membresiaEstado === 'activa' || editData.badge ? (
+                      <div className="flex items-center gap-2">
+                        <span className="bg-green-100 text-green-700 text-[10px] px-3 py-1.5 rounded-lg font-black uppercase tracking-widest">
+                          Socio activo · {editData.badge}
+                        </span>
+                      </div>
+                    ) : editData.membresiaEstado === 'pendiente' ? (
+                      <span className="bg-amber-100 text-amber-700 text-[10px] px-3 py-1.5 rounded-lg font-black uppercase tracking-widest">
+                        Alta pendiente de pago
+                      </span>
+                    ) : (
+                      <span className="bg-slate-100 text-slate-400 text-[10px] px-3 py-1.5 rounded-lg font-black uppercase tracking-widest">
+                        Sin membresía
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Acciones según estado */}
+                  {(editData.membresiaEstado === 'activa' || editData.badge) ? (
+                    <button
+                      onClick={handleCancelarMembresia}
+                      disabled={procesandoMembresia}
+                      className="w-full py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-colors disabled:opacity-50"
+                    >
+                      {procesandoMembresia ? 'Procesando...' : 'Cancelar membresía'}
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Asignar membresía (envía email de pago):</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAltaMembresia('Descorche')}
+                          disabled={procesandoMembresia}
+                          className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-orange transition-colors disabled:opacity-50"
+                        >
+                          Descorche
+                        </button>
+                        <button
+                          onClick={() => handleAltaMembresia('Terruño')}
+                          disabled={procesandoMembresia}
+                          className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-orange transition-colors disabled:opacity-50"
+                        >
+                          Terruño
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
              <section>
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Contacto</h4>
                 <div className="grid grid-cols-2 gap-3">
