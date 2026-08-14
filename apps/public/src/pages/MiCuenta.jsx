@@ -84,7 +84,7 @@ export default function MiCuenta() {
           {enviado ? (
             <div className="bg-brand-orange/10 border border-brand-orange/20 p-6 rounded-sm">
               <p className="text-sm text-brand-white/90"> 
-              Si <strong>{email}</strong> corresponde a una cuenta, te enviamos un enlace de acceso. Revisá tu correo.
+                Si <strong>{email}</strong> corresponde a una cuenta, te enviamos un enlace de acceso. Revisá tu correo.
                 </p>
             </div>
           ) : (
@@ -111,7 +111,7 @@ export default function MiCuenta() {
   return (
     <div className="min-h-screen bg-extra-black text-brand-white">
       <MainNavbar />
-      <div className="max-w-3xl mx-auto px-6 py-16">
+      <div className="max-w-3xl mx-auto px-6 py-16 pt-40  md:pt-48 ">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between mb-10">

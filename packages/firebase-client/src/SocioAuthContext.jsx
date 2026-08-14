@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
-  sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
   signOut
 } from "firebase/auth";
 import { auth } from './client.js';
+import { fetchConAppCheck } from './appCheckFetch.js';
+
 
 const SocioAuthContext = createContext();
 
@@ -19,15 +20,17 @@ export const SocioAuthProvider = ({ children }) => {
 
   // Enviar el magic link al email del socio
   const enviarLinkAcceso = async (email) => {
-    const emailLower = email.toLowerCase().trim();
-    const actionCodeSettings = {
-      url: getRedirectUrl(),
-      handleCodeInApp: true
-    };
-    await sendSignInLinkToEmail(auth, emailLower, actionCodeSettings);
-    // Guardamos el email para completar el login cuando vuelva del click
-    window.localStorage.setItem('decant_email_login', emailLower);
-  };
+  const emailLower = email.toLowerCase().trim();
+  const res = await fetchConAppCheck(import.meta.env.VITE_ENVIAR_LINK_SOCIO_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: emailLower })
+  });
+  // Guardamos el email para completar el login cuando vuelva del click
+  window.localStorage.setItem('decant_email_login', emailLower);
+  const data = await res.json();
+  if (!data.success) throw new Error('No se pudo procesar la solicitud.');
+};
 
   // Al cargar /mi-cuenta, si la URL es un magic link, completar el login
   const completarLoginDesdeLink = async () => {

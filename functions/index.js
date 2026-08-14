@@ -803,3 +803,54 @@ exports.miCuenta = onRequest(async (req, res) => {
     return res.status(500).send({ success: false, error: 'Error interno' });
   }
 });
+
+// 11. ENVIAR MAGIC LINK AL SOCIO (validado server-side + Brevo)
+// Solo manda el link si el email existe en clientes. Si no existe, no hace nada
+// pero responde igual (success: true) para no revelar quién es cliente (anti-enumeración).
+exports.enviarLinkSocio = onRequest(
+  { secrets: ["BREVO_API_KEY"] },
+  async (req, res) => {
+    if (handleCORS(req, res)) return;
+    if (await verificarAppCheck(req, res)) return;
+
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).send({ success: false, error: 'Falta el email' });
+
+      const emailLower = email.toLowerCase().trim();
+      const db = admin.firestore();
+
+      // Validar que el email exista en clientes. Si no, respondemos OK sin hacer nada.
+      const clienteSnap = await db.collection('clientes').doc(emailLower).get();
+      if (!clienteSnap.exists) {
+        // Respuesta idéntica al caso exitoso: no revelamos que no es cliente.
+        return res.status(200).send({ success: true });
+      }
+      const cliente = clienteSnap.data();
+
+      // Generar el magic link server-side
+      const actionCodeSettings = {
+        url: 'https://www.decantclub.online/mi-cuenta',
+        handleCodeInApp: true
+      };
+      const link = await admin.auth().generateSignInWithEmailLink(emailLower, actionCodeSettings);
+
+      // Mandar por Brevo (template 10) con nuestro diseño
+      await enviarEmailBrevo({
+        toEmail: emailLower,
+        toName: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim() || 'Socio',
+        templateId: 10,
+        params: {
+          nombre: cliente.nombre || 'Socio',
+          linkAcceso: link
+        }
+      });
+
+      return res.status(200).send({ success: true });
+    } catch (error) {
+      logger.error("Error enviando link de socio:", error.message);
+      // Aún ante error, respondemos genérico para no filtrar información
+      return res.status(200).send({ success: true });
+    }
+  }
+);
